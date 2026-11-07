@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#182a30">
+    <meta name="description" content="EQORE contractor portal. Contractors see their tasks and timelines, mark work done and report problems; the PM approves replacement resources.">
+    <title>EQORE · Contractor portal</title>
+    <!-- Same look as the deployment workspace: Yichang's stylesheet, plus a few portal-only rules. -->
+    <link rel="stylesheet" href="../eqore-demo/web/styles.css">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div id="app">
+      <div class="loading-shell" role="status"><div class="brand-mark">e</div><h1>Opening the contractor portal</h1><p>Loading tasks and project timelines…</p></div>
+    </div>
+    <noscript>This local prototype needs JavaScript.</noscript>
+    <script src="../command-center/data.js"></script>
+    <script src="db.js"></script>
+    <script src="model.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
