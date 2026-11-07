@@ -43,8 +43,22 @@ The PM can add, edit and delete **products** (Procurement page) and **contractor
 - **`adapter.py`:** uses this platform's sign-in (no profile picker), stores records in `pm/data/paperwork.json` instead of SQLite, and seeds each project. The first time a PM signs in, the app sends a plan for each of their projects. The plan contains his 20-document template (D01–D20) with each document dated from the project's timeline. Documents for finished work are replayed as completed, current ones are sent or partly signed, and a reported problem leaves its step's document returned. Each product also gets a purchase order, a spec sheet (for equipment) and a delivery receipt. After seeding, his records are the only source of documents: to-dos, the inbox, calendar paperwork dates, and the subcontractor and product Documents popups all read them. The adapter also adds two actions to his set, `add_document` and `edit_document_details`.
 - **Small stand-ins** for the eqore-demo modules his code imported: `engine.py` (DomainError), `projects.py` (no delivery catalog), `storage.py` (JSON store with his optimistic-version contract) and `llm.py`. `llm.py` makes his reading summaries and email drafts run on **Claude** (`claude-opus-5-5`, Anthropic SDK) instead of ChatGPT via Codex. To turn it on, run `pip install anthropic` and set `ANTHROPIC_API_KEY`. Without them, the AI buttons are hidden, as in his version.
 - **Features:** a project overview with next actions and stages, a document register (filter by status, stage, timeline step or product), and document detail with the document, original emails, signing events and dependencies. Actions include editing drafts, preparing local packages, revisions, voiding, sample responses and recording emails. There are also contact pages with signed history, the compliance coverage review against EQORE's 20 requirements (track a requirement, set review dates), EQORE references, and project archiving. Email drafts can be saved, copied or downloaded, or sent through the platform's compose window with **Send with my email**.
+- **Signing (platform addition, `doccenter/signing.py`):** on a signature document you prepare, **Sign and send** works two ways:
+  - *DocuSign connected:* **Sign with DocuSign and send** sends the envelope with you as the first signer, signing in the platform (embedded signing, in a window over the page), and the document's recipients as the next signers. DocuSign emails them once you have signed. When you finish, DocuSign returns you to the document, which records your signature and syncs the envelope. The other signers' signatures are recorded by his **Sync DocuSign status** from DocuSign's own records, never assumed. Each signer needs a real email address, set from their contact page (**Edit project contact**); the demo addresses can't receive mail.
+  - *Not connected:* a signature pad (draw or type) signs the current revision in the platform. Your name, the time and a fingerprint of the exact text are saved, then the document goes to its recipients. **Email the signed copy** opens your email with the signed PDF attached: it is sent from your Gmail when you're signed in with Google, or downloads so you can attach it to a Gmail draft.
+  - **View PDF** on any document renders it, with its signatures, as a PDF (`/api/paperwork/document.pdf`).
+- **Versions (platform addition):** the **Versions** tab lists every revision with when and why it was replaced and whether you signed it. You can view any earlier revision with its signatures, compare it with the current one (added and removed lines), open or download it as a PDF, and edit: **Edit this draft**, **Edit in a new revision**, **Copy into current draft** or **Restore as new revision**. Earlier revisions are never changed: edits go into the current draft or a new revision, so signed history stays intact.
 - **Integrations:** DocuSign sandbox drafts, sync and connection tests work as in his version, with OAuth callbacks on this server (`http://localhost:8790/api/paperwork/oauth/callback/docusign`). A PM signed in with Google already has Gmail connected, so his Gmail draft and reply-sync use that sign-in (the platform asks for `gmail.compose` for drafts).
 - **Links:** every link into the document center goes through `docLink`/`stepDocsLink` in `app.js`: `#/project/<JOB>/documents?doc=<id>`, `?step=<step key>` or `?product=<product id>`. Document ids are his: `D01`–`D20`, `C_<requirement>` for tracked compliance documents, `P-<product>-po` / `-spec` / `-receipt`, and `X<n>` for documents the PM adds.
+
+## Connect DocuSign (developer sandbox)
+
+1. In a free [DocuSign developer account](https://developers.docusign.com/), open **Apps and Keys** and add an app (integration key). Choose authorization code grant with PKCE (no secret), and add the redirect URI `http://localhost:8790/api/paperwork/oauth/callback/docusign`.
+2. Start the server with the key: `export EQORE_DOCUSIGN_CLIENT_ID=<integration key>` (or paste it into the form in step 3).
+3. In any project's **Document center → Integrations**, choose **Connect account** for DocuSign, sign in to the developer account and allow access. Then choose **Test connection**.
+4. On a signature document, set real email addresses for its signers (Contacts → Edit project contact). **Sign with DocuSign and send** then opens your signing page, and DocuSign emails the others.
+
+The connection lasts for the server session (tokens stay in memory, as in Yichang's version). Sign-and-send uses DocuSign's sandbox (`demo.docusign.net`), so nothing is legally binding.
 
 ## Connect Gmail and Google Calendar (about 5 minutes)
 
@@ -65,7 +79,7 @@ Permissions requested: sign-in (`openid email profile`), read Gmail (`gmail.read
 
 ```sh
 node pm/model.test.js                               # schedule, status, products, edits, document-center plan and feed
-python -m unittest discover -s pm/doccenter -v      # the document-center adapter
+python -m unittest discover -s pm/doccenter -v      # the document-center adapter and signing (DocuSign against a fake server)
 ```
 
 ## Files
@@ -73,7 +87,7 @@ python -m unittest discover -s pm/doccenter -v      # the document-center adapte
 | File | What it does |
 | --- | --- |
 | `server.py` | Serves the repo root, sign-in (demo accounts and Google OAuth), Gmail paperwork scan, Google Calendar, sending email, saving each PM's edits, and the document center API (`/api/paperwork/*`) |
-| `doccenter/` | Yichang's document engine (unchanged copies), the adapter, stand-ins and the adapter tests |
+| `doccenter/` | Yichang's document engine (unchanged copies), the adapter, signing (DocuSign embedded signing, platform signatures, signed PDFs), stand-ins and tests |
 | `doccenter.js`, `doccenter.css` | Yichang's document center screens, mounted in each project's Document center page |
 | `data.js` | Synthetic data: PMs, the 16-step template and its paperwork, companies (from the old contractor portal's database), 37 MA/CA projects, the products each project buys, reported delays |
 | `model.js` | Forecast (forward pass, including delivery dates) and slack (backward pass), project status, products, to-dos, the document-center seed plan and feed, the PM's edits, calendar items, subcontractor updates, contractor availability |

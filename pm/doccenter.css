@@ -179,3 +179,35 @@
 
 @media(max-width:1000px){.dc .project-overview,.dc .detail-grid{grid-template-columns:1fr}.dc .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.dc .facts{grid-template-columns:1fr 1fr}}
 @media(max-width:760px){.dc .coverage-facts{grid-template-columns:1fr}.dc .document-table th:nth-child(3),.dc .document-table td:nth-child(3){display:none}}
+
+/* Signing and versions (platform additions) */
+.dc .signature-block{margin-top:16px;border-top:1px dashed var(--line);padding-top:12px;display:grid;gap:10px}
+.dc .sig-row{display:flex;gap:14px;align-items:center}
+.dc .sig-row>div{display:grid;gap:1px}
+.dc .sig-row small{font-size:10px;color:var(--muted)}
+.dc .mono{font-family:ui-monospace,monospace}
+.dc .sig-drawn{width:180px;height:48px;border-bottom:1px solid var(--line);flex-shrink:0}
+.dc .sig-drawn polyline{fill:none;stroke:#06162B;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.dc .sig-typed{font-family:"Brush Script MT","Segoe Script","Lucida Handwriting",cursive;font-size:26px;color:#06162B;min-width:180px;border-bottom:1px solid var(--line);line-height:1.4}
+.dc .sig-typed.preview{min-height:44px}
+.dc .sign-preview{max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--paper)}
+.dc .sign-preview .body{white-space:pre-wrap;font-size:11px;line-height:1.6}
+.dc .sign-tabs{display:flex;gap:4px}
+.dc .sign-tabs button{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:6px 14px;font-size:11px;color:var(--ink)}
+.dc .sign-tabs button.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.dc .sign-pad-wrap{position:relative;display:grid;gap:6px;justify-items:start}
+.dc .sign-pad{width:100%;max-width:600px;aspect-ratio:600/160;height:auto;border:1px dashed var(--abbey);border-radius:8px;background:#fff;touch-action:none;cursor:crosshair}
+.dc .sign-line{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+.dc .versions{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px}
+.dc .version-list{list-style:none;padding:0;margin:0;display:grid;gap:6px;align-content:start}
+.dc .version{display:grid;gap:2px;width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:9px 11px;color:var(--ink);font-size:11px}
+.dc .version.active{border-color:var(--navy);box-shadow:inset 3px 0 var(--navy)}
+.dc .version small{color:var(--muted);font-size:10px}
+.dc .version .reason{font-style:italic}
+.dc .version .signed-flag{color:var(--teal);font-weight:600}
+.dc .version-tools{margin-bottom:12px}
+.dc pre.diff{white-space:pre-wrap;font-size:11px;line-height:1.6;max-height:none;background:var(--surface)}
+.dc pre.diff .add,.dc .diff-key.add{background:#e3f2ea;color:#1d6b47;display:inline}
+.dc pre.diff .del,.dc .diff-key.del{background:var(--red-bg);color:var(--red);text-decoration:line-through;display:inline}
+.dc .diff-key{padding:0 4px;border-radius:3px}
+@media(max-width:760px){.dc .versions{grid-template-columns:1fr}}

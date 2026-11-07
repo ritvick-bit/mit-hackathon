@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 
 import llm
 import paperwork
+import signing
 import paperwork_oauth
 from engine import DomainError
 from paperwork_api import PaperworkService
@@ -180,6 +181,7 @@ class DocCenter(PaperworkService):
     """Yichang's PaperworkService with the PM platform's identity, storage and project seeding."""
 
     def __init__(self, folder, port, sessions, sessions_lock, pms, google_token=None):
+        self.port = port
         self.store = JsonStore(folder)
         self.pool = ThreadPoolExecutor(max_workers=2)
         self.auth = llm.runtime_status()
@@ -274,7 +276,7 @@ class DocCenter(PaperworkService):
     # -- platform additions to his action set: add a document, edit its details
     def action(self, token, payload):
         act = payload.get("action") if isinstance(payload, dict) else None
-        if isinstance(act, dict) and act.get("type") in ("add_document", "edit_document_details"):
+        if isinstance(act, dict) and act.get("type") in ("add_document", "edit_document_details", "sign_locally"):
             with self.store.lock:
                 pm, record = self.current(token, payload)
                 state = copy.deepcopy(record["state"])
@@ -282,6 +284,8 @@ class DocCenter(PaperworkService):
                 project = paperwork._project(state, pm, act.get("project_id"), writable=True)
                 if act["type"] == "add_document":
                     self._add_document(state, project, pm, act)
+                elif act["type"] == "sign_locally":
+                    self._sign_locally(state, project, pm, act, token)
                 else:
                     self._edit_details(state, project, pm, act)
                 self.store.write_workspace("paperwork", state, record["version"])
@@ -314,3 +318,121 @@ class DocCenter(PaperworkService):
             if key in act:
                 doc[key] = (str(act[key])[:2000] if act[key] is not None else None); changes.append(key.replace("_id", "").replace("_", " "))
         paperwork._audit(state, project, "document_details_edited", pm, "PM edited " + (", ".join(changes) or "nothing") + ".", doc)
+
+    # -- signing: in the platform, or through DocuSign (pm/doccenter/signing.py)
+    def _pm_person(self, token, pm):
+        session = self._session(token) or {}
+        return {"name": session.get("name") or pm, "email": session.get("email") or "", "client_user_id": pm}
+
+    def _signable(self, state, project, doc, pm):
+        if doc["kind"] != "esign":
+            raise DomainError("Only signature documents are signed. Reviews and records follow their own workflow.")
+        if doc["owner_id"] != pm:
+            raise DomainError("This document is prepared by someone else; you sign it when they send it.")
+        view = paperwork._document_view(state, project, doc)
+        if view["blockers"]:
+            raise DomainError("Complete its prerequisites first: " + "; ".join(view["blockers"]))
+        if not doc.get("body", "").strip():
+            raise DomainError("Prepare the document draft before signing it.")
+
+    def _sign_locally(self, state, project, pm, act, token):
+        """The PM signs the current revision in the platform, then it goes to the recipients as a local package."""
+        doc = paperwork._doc(project, act.get("doc_id"))
+        if doc["status"] not in ("ready", "draft") or doc["provider"] != "local_sample":
+            raise DomainError("This revision has already been sent. Open a new revision to change and re-sign it.")
+        self._signable(state, project, doc, pm)
+        if act.get("consent") is not True:
+            raise DomainError("Confirm that you are signing this revision electronically.")
+        person = self._pm_person(token, pm)
+        sig = signing.clean_signature(act.get("signature"), person["name"])
+        sig.update(revision=doc["revision"], signed_at=state["now"], signer_id=pm, source_mode="platform",
+                   body_hash=signing.body_hash(doc["title"], doc["revision"], doc["body"]))
+        doc.setdefault("pm_signatures", []).append(sig)
+        paperwork._audit(state, project, "pm_signed", pm, "Signed revision %s in the platform (%s signature)." % (doc["revision"], "drawn" if sig["method"] == "draw" else "typed"), doc)
+        paperwork._dispatch(state, project, doc, pm)
+
+    def docusign_sign(self, token, payload):
+        """Sends the document through DocuSign with the PM signing first, and returns the PM's signing page."""
+        pm = self.actor(token)
+        project_id, doc_id = payload.get("project_id"), payload.get("doc_id")
+        client = self.client(token)
+        if not client.status()["docusign"]["configured"]:
+            raise DomainError("Connect DocuSign in Integrations first, or sign in the platform.")
+        person = self._pm_person(token, pm)
+        with self.store.lock:
+            record = self.store.read_workspace("paperwork")
+            state = copy.deepcopy(record["state"])
+            state["now"] = self.now()
+            project = paperwork._project(state, pm, project_id, writable=True)
+            doc = paperwork._doc(project, doc_id)
+            ps = doc.get("platform_signing") or {}
+            if ps.get("envelope_id") and ps["envelope_id"] == doc.get("envelope_id") and doc["status"] in ("sent", "partially_signed") and not ps.get("pm_signed_at"):
+                envelope_id = ps["envelope_id"]
+            elif doc["status"] in ("ready", "draft") and doc["provider"] == "local_sample":
+                self._signable(state, project, doc, pm)
+                people = {p["id"]: p for p in project["stakeholders"]}
+                recipients = []
+                for r in doc["recipients"]:
+                    email = people.get(r["id"], {}).get("email", "")
+                    if self.placeholder_email(email):
+                        raise DomainError(f"Set a real email address for {r['name']} first (open them under Contacts and choose Edit project contact). DocuSign emails each signer.")
+                    recipients.append({"recipient_id": r["id"], "name": r["name"], "email": email})
+                result = signing.send_for_signature(client, scope={"project_id": project_id, "document_id": doc_id, "document_revision": doc["revision"]},
+                                                    request_id=f"sign-{project_id}-{doc_id}-r{doc['revision']}", title=doc["title"], body=doc["body"], pm=person, recipients=recipients)
+                sent_at = result["sent_at"]  # DocuSign's own time, so later reconciliation matches it exactly
+                if paperwork._dt(sent_at) > paperwork._dt(state["now"]):
+                    state["now"] = sent_at  # this server's clock is a little behind DocuSign's
+                state = paperwork.apply(state, pm, {"type": "bind_provider_envelope", "project_id": project_id, "doc_id": doc_id, "envelope_id": result["envelope_id"],
+                                                    "provider": "docusign", "recipient_map": result["recipient_map"], "envelope_status": "sent", "sent_at": sent_at}, trusted_provider=True)
+                project = state["projects"][project_id]
+                doc = paperwork._doc(project, doc_id)
+                doc["platform_signing"] = {"envelope_id": result["envelope_id"], "requested_at": state["now"], "pm_signed_at": None}
+                envelope_id = result["envelope_id"]
+                self.store.write_workspace("paperwork", state, record["version"])
+            else:
+                raise DomainError("This document isn't waiting for your signature.")
+        url = signing.signing_url(client, envelope_id=envelope_id, pm=person,
+                                  return_url=f"http://localhost:{self.port}/api/paperwork/signing/return?project_id={project_id}&doc_id={doc_id}")
+        return {"signing_url": url, "envelope_id": envelope_id}
+
+    def signing_return(self, token, query):
+        """DocuSign sends the PM back here. A completed signature is noted, then the envelope is reconciled."""
+        pm = self.actor(token)
+        project_id, doc_id, event = query.get("project_id"), query.get("doc_id"), query.get("event") or "unknown"
+        if event == "signing_complete":
+            with self.store.lock:
+                record = self.store.read_workspace("paperwork")
+                state = copy.deepcopy(record["state"])
+                state["now"] = self.now()
+                project = paperwork._project(state, pm, project_id)
+                doc = paperwork._doc(project, doc_id)
+                ps = doc.get("platform_signing")
+                if ps and not ps.get("pm_signed_at"):
+                    ps["pm_signed_at"] = state["now"]
+                    paperwork._audit(state, project, "pm_signed", pm, "Signed in DocuSign from the platform; DocuSign now emails the other signers.", doc)
+                    self.store.write_workspace("paperwork", state, record["version"])
+            try:
+                version = self.store.read_workspace("paperwork")["version"]
+                self.connector_action(token, {"operation": "sync_envelope", "provider": "docusign", "expected_version": version,
+                                              "project_id": project_id, "doc_id": doc_id})
+            except Exception:
+                pass  # the PM can sync again from the document
+        return {"project_id": project_id, "doc_id": doc_id, "event": event}
+
+    def pdf(self, token, project_id, doc_id, revision=None):
+        """The document (current or an earlier revision) as a PDF with its signatures."""
+        pm = self.actor(token)
+        state = self.store.read_workspace("paperwork")["state"]
+        project = paperwork._project(state, pm, project_id)
+        doc = paperwork._doc(project, doc_id)
+        rev = int(revision) if revision not in (None, "") else doc["revision"]
+        snap = doc if rev == doc["revision"] else next((r for r in doc["revisions"] if r["revision"] == rev), None)
+        if not snap:
+            raise ValueError("No such revision.")
+        sigs = [x for x in (doc.get("pm_signatures") or []) if x.get("revision") == rev]
+        status = snap.get("status", "")
+        data = signing.render_pdf(title=snap["title"], subtitle=f"{project['name']} ({project['id']}) - {doc_id} - revision {rev} - {status.replace('_', ' ')}",
+                                  body=snap.get("body") or "(No document text.)", revision=rev, signatures=sigs,
+                                  recipients=[{"name": r["name"], "status": r["status"], "signed_at": r.get("signed_at")} for r in snap.get("recipients", [])],
+                                  footer=f"Generated by the EQORE PM platform on {self.now()[:16].replace('T', ' ')} UTC from document center record {project_id}/{doc_id}/r{rev}.")
+        return data, f"{project_id}-{doc_id}-r{rev}.pdf"

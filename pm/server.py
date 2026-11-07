@@ -213,7 +213,7 @@ def google_calendar(session, start, end):
 ADDRESS = re.compile(r"^[^@\s<>\"]+@[^@\s<>\"]+\.[^@\s<>\"]+$")
 
 
-def gmail_send(session, body):
+def gmail_send(session, body, attachments=()):
     to = [a for _, a in getaddresses([str(body.get("to", ""))]) if a]
     cc = [a for _, a in getaddresses([str(body.get("cc", ""))]) if a]
     subject = str(body.get("subject", "")).strip()
@@ -232,6 +232,8 @@ def gmail_send(session, body):
     msg["From"] = session["email"]
     msg["Subject"] = subject
     msg.set_content(text)
+    for data, filename in attachments:
+        msg.add_attachment(data, maintype="application", subtype="pdf", filename=filename)
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     sent = http_json("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", "POST", {"raw": raw}, token=access_token(session))
     return {"sent": True, "id": sent.get("id"), "thread_id": sent.get("threadId"), "to": to}
@@ -326,6 +328,40 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.redirect("/pm/" + back + ("&" if "?" in back else "?") + "connected=" + quote(provider))
             except Exception as e:  # shown to the PM on return; provider errors never include tokens
                 return self.redirect("/pm/" + back + ("&" if "?" in back else "?") + "connect_error=" + quote(str(e)[:200]))
+        if path == "/api/paperwork/document.pdf":
+            g = lambda k: query.get(k, [None])[0]
+            try:
+                data, name = DOCS.pdf(self.token(), g("project_id"), g("doc_id"), g("revision"))
+            except PermissionError as e:
+                return self.send_json({"error": str(e)}, HTTPStatus.UNAUTHORIZED)
+            except (ValueError, KeyError, DomainError) as e:
+                return self.send_json({"error": str(e)}, HTTPStatus.BAD_REQUEST)
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/pdf")
+            self.send_header("Content-Disposition", f'{"attachment" if g("download") else "inline"}; filename="{name}"')
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if path == "/api/paperwork/signing/return":
+            g = lambda k: query.get(k, [""])[0]
+            try:
+                r = DOCS.signing_return(self.token(), {"project_id": g("project_id"), "doc_id": g("doc_id"), "event": g("event")})
+            except Exception as e:  # noqa: BLE001  shown to the PM; no provider detail is included
+                r = {"project_id": g("project_id"), "doc_id": g("doc_id"), "event": "error", "error": str(e)[:200]}
+            target = "/pm/#/project/%s/documents?doc=%s&signed=%s" % (quote(r["project_id"] or ""), quote(r["doc_id"] or ""), quote(r["event"]))
+            page = ("<!doctype html><meta charset='utf-8'><title>Signing finished</title><body style='font-family:sans-serif;padding:24px'>"
+                    "<p>Returning to the EQORE PM platform…</p><script>const t=%s,e=%s;"
+                    "if(window.opener&&!window.opener.closed){window.opener.postMessage({type:'eqore-signing',event:e},location.origin);window.close();}"
+                    "else location.replace(t);</script>") % (json.dumps(target), json.dumps(r["event"]))
+            data = page.encode("utf-8")
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if path == "/api/paperwork/bootstrap":
             return self.paperwork(lambda t: DOCS.bootstrap(t, query.get("project_id", [None])[0]))
         if path == "/api/paperwork/connectors":
@@ -339,6 +375,8 @@ class Handler(SimpleHTTPRequestHandler):
     def paperwork_post(self, path, body):
         if path == "/api/paperwork/action":
             return self.paperwork(lambda t: DOCS.action(t, body))
+        if path == "/api/paperwork/docusign/sign":
+            return self.paperwork(lambda t: DOCS.docusign_sign(t, body))
         if path == "/api/paperwork/ensure":
             return self.paperwork(lambda t: DOCS.ensure(t, body))
         if path == "/api/paperwork/assist":
@@ -501,7 +539,15 @@ class Handler(SimpleHTTPRequestHandler):
                 SESSIONS.pop(cookies.get("pm_session", ""), None)
             return self.send_json({"ok": True}, cookie="pm_session=; Max-Age=0; Path=/")
         if path == "/api/send":
-            return self.with_google(lambda s: gmail_send(s, body))
+            # Attachments are documents from the document center, rendered here; the browser never uploads files.
+            wanted = body.get("attachments") or []
+            if not isinstance(wanted, list) or len(wanted) > 3:
+                return self.send_json({"error": "Attach up to three documents."}, HTTPStatus.BAD_REQUEST)
+            try:
+                files = [DOCS.pdf(self.token(), a.get("project_id"), a.get("doc_id"), a.get("revision")) for a in wanted if isinstance(a, dict)]
+            except (PermissionError, ValueError, KeyError, DomainError) as e:
+                return self.send_json({"error": f"Couldn't attach the document: {e}"}, HTTPStatus.BAD_REQUEST)
+            return self.with_google(lambda s: gmail_send(s, body, files))
         return self.send_error(HTTPStatus.NOT_FOUND)
 
 

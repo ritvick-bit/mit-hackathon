@@ -634,6 +634,7 @@
         <label class="field"><span>Cc</span><input name="cc" value="${esc(draft.cc || "")}" autocomplete="off"></label>
         <label class="field"><span>Subject</span><input name="subject" value="${esc(draft.subject)}"></label>
         <label class="field"><span>Message</span><textarea name="body" rows="10">${esc(draft.body)}</textarea></label>
+        ${draft.attach ? `<div class="attachment">${I.doc}<a href="${esc(draft.attach.url)}" target="_blank" rel="noopener">${esc(draft.attach.name)}</a><small>${demo ? "Gmail drafts opened from here can't carry attachments: it downloads so you can attach it." : "Attached when you send."}</small></div>` : ""}
         ${/\.demo\.example\b/.test(draft.to) ? `<p class="tiny muted">Demo contacts use .example addresses, which never deliver. Put a real address in To if you want to test sending.</p>` : ""}
         <div class="form-actions"><button class="button" type="submit">${I.mail}${demo ? "Open in Gmail to send" : "Send from " + esc(me.email)}</button><button class="button ghost" type="button" data-action="close-modal">Cancel</button></div>
         <p class="tiny muted">${demo ? "Demo account: this opens a Gmail draft in a new tab. Sign in with Google to send straight from here." : "Sent through your Gmail. It appears in your Sent folder."}</p>
@@ -644,10 +645,12 @@
       if (!f.to.trim() || !f.subject.trim()) return toast("Add a recipient and a subject.", true);
       if (demo) {
         const url = "https://mail.google.com/mail/?view=cm&fs=1&" + new URLSearchParams({ to: f.to, cc: f.cc, su: f.subject, body: f.body }).toString();
-        window.open(url, "_blank", "noopener"); closeModal(); return;
+        if (draft.attach) { const a = document.createElement("a"); a.href = draft.attach.url; a.download = draft.attach.name; document.body.appendChild(a); a.click(); a.remove(); }
+        window.open(url, "_blank", "noopener"); closeModal(); if (draft.attach) toast(`${draft.attach.name} downloaded: attach it to the Gmail draft.`); return;
       }
       const btn = e.target.querySelector("button[type=submit]"); btn.disabled = true;
-      try { const r = await api("/api/send", { method: "POST", body: JSON.stringify(f) }); closeModal(); toast(`Sent to ${r.to.join(", ")}.`); }
+      const payload = { ...f, attachments: draft.attach ? [{ project_id: draft.attach.project_id, doc_id: draft.attach.doc_id, revision: draft.attach.revision }] : [] };
+      try { const r = await api("/api/send", { method: "POST", body: JSON.stringify(payload) }); closeModal(); toast(`Sent to ${r.to.join(", ")}${draft.attach ? " with the signed PDF" : ""}.`); }
       catch (err) { btn.disabled = false; toast(err.message, true); }
     });
   }
