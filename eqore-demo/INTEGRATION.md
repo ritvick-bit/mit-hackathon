@@ -1,83 +1,83 @@
-# PM workspace integration handoff (v0.5)
+# Unified PM and contractor workspace (v0.6)
 
-This folder is the working PM application. The contractor portal and command center remain separate modules; this handoff does not claim they are connected. Follow the repository's root `AGENTS.md` ownership rules. `CLAUDE.md` here makes this guide discoverable to Claude Code.
+This module serves PM and contractor screens over the same three project snapshots and decision engine. Command-center ideas now appear as project readiness, procurement and external-partner calendars derived from those records. The original sibling `contractor/` and `command-center/` applications remain reference implementations; their 25-job seed catalog, JSON database and localStorage are not imported or synchronized. Follow root `AGENTS.md` ownership rules; this module's `CLAUDE.md` imports this guide.
 
-## Run and verify
+## Run
 
-From the team repository root:
+From the repository root:
 
 ```sh
 cd eqore-demo
-python3 server.py                         # http://127.0.0.1:8765/
+python3 server.py
+# PM:         http://127.0.0.1:8765/
+# Contractor: http://127.0.0.1:8765/contractor.html
 python3 -m unittest discover -s tests -v
-# Optional isolated database / alternate port:
+# Optional isolated database:
 python3 server.py --port 8766 --db /tmp/eqore-integration.sqlite3
 ```
 
-Python 3.10+, standard library; no frontend build. Systems without IANA timezone data need `tzdata`. Each clone seeds its own SQLite database. Keep databases, uploaded reports and credentials out of Git. Live summaries require the locally authenticated `codex` CLI (`codex login`, then restart the server); Claude Code can edit and run the application without changing its LLM provider. No Anthropic key is required by this module.
+Python 3.10+, standard library, no frontend build. Systems without IANA timezone data need `tzdata`. Each clone creates its own SQLite database. Live summaries require a locally authenticated `codex` CLI (`codex login`, then restart). Claude Code can edit/run this application without changing its LLM provider. No Anthropic key is required by this module. Keep databases, uploads and credentials out of Git.
 
-## Current data contract
+## Shared data
 
-`GET /api/bootstrap` returns `state`, `session_version`, derived `dashboard`, `phases`, `operations`, public `vendors`, `workspace.calendar`, and the project catalog. Treat derived projections as read-only. `storage.py` persists the canonical PM snapshot; `engine.py` and `operations.py` validate mutations.
-
-| Project selector (`projects[].id`) | Canonical PM `state.project.id` |
+| Project selector | Canonical `state.project.id` |
 | --- | --- |
 | `harbor_components` | `EQ-DEMO-HARBOR-01` |
 | `millbrook_cold_storage` | `EQ-DEMO-MILLBROOK-02` |
 | `riverbend_logistics` | `EQ-DEMO-RIVERBEND-03` |
 
-Tasks use project-scoped string IDs: `t_contract`, `t_survey`, `t_design`, `t_permit`, `t_utility`, `t_procure`, `t_site`, `t_unload`, `t_electrical`, `t_verify`, `t_commission`, `t_closeout_documents`, `t_customer_training`, `t_handoff`. Use `(project.id, task.id)` as a compound identity. Vendor changes can add further work-package tasks; do not assume exactly 14 forever.
+Use `(project.id, task.id)` as a compound identity. Initial task IDs are `t_contract`, `t_survey`, `t_design`, `t_permit`, `t_utility`, `t_procure`, `t_site`, `t_unload`, `t_electrical`, `t_verify`, `t_commission`, `t_closeout_documents`, `t_customer_training`, `t_handoff`. Authorized vendor work can add further tasks. Timestamps carry UTC offsets; display timezone is `America/New_York`. `project.now` is the scenario clock; `project.revision` is the domain plan revision, not an API concurrency token.
 
-Task fields include `title`, `owner_id`, `predecessors`, `duration_hours`, `planned_start`, `status`, `required_gates`, `required_resources`, and `evidence_ids`. Timestamps carry UTC offsets; calendar display uses `America/New_York`. `project.now` is the scenario clock. `project.revision` binds proposals to a plan and is distinct from the API's `session_version`.
+`storage.py` owns snapshots, images, versions and audit history. `engine.py` owns dependencies, authority, gates and acceptance. `operations.py` owns source-linked vendor cases, offers, approval and commitment. `contractor_bridge.py` adapts assigned-party reports, quotes, bookings and completion into those same rules without another scheduler. `project_resources.py` derives procurement, readiness, subcontractors and calendar views.
 
-Core `state` contains tasks, stakeholders, gates, calendars, evidence, proposals, decisions, requests and bookings. The additional `state.operations` holds source messages, support cases, inquiries, replies, vendor proposals, decisions, bookings and audit. These two proposal collections have different contracts; do not concatenate or interchange them. `vendors.py` defines supported capabilities: `rigging`, `electrical_ct`, `epc_interconnection`.
+Core `state` holds tasks, stakeholders, gates, evidence, calendars, proposals, decisions, requests and bookings. `state.operations` contains vendor cases/messages/inquiries/replies and its own scoped proposals/decisions/bookings; these proposal collections have different contracts. `state.contractor_reports` links stable client report IDs to original messages, actors, tasks and cases.
 
-## API adapters
+## PM API
 
-POST JSON with `Content-Type: application/json`. Every mutation below needs the latest `expected_version` from `session_version`; success returns a fresh bootstrap except asynchronous jobs. A stale request returns HTTP 409: reload, review and retry the intended action, never blindly replay an approval.
+`GET /api/bootstrap` returns selected state, integer `session_version`, derived dashboard/phases/operations, public vendors and `workspace.resources`. Resources include project subcontractor work packages/offers, procurement, calendar, approximate city map anchors and 14 explicit readiness criteria. Accepted-count is not a critical-path score or dispatch authorization. External partners belong to project work packages; there is no EQORE-owned crew pool.
 
-| Route | Additional payload / result |
+`GET /api/bootstrap?project_id=harbor_components` reads that project without changing selection. If it differs from the selected project, `session_version` is `-1`, deliberately unsuitable for mutation. `GET /api/updates?project_id=...` returns `portfolio_revision`, `project_revision` and `report_count` for refresh detection without changing selection.
+
+PM POST routes remain session-based: send JSON with `expected_version` from the selected bootstrap. Routes include `/api/projects/select`, `/api/messages`, `/api/operations`, `/api/message-summary` and existing engine actions. `/api/operations` uses the PM actor; `/api/operations/respond` remains a local counterpart simulator. A stale request returns HTTP 409: refresh and review before retrying an approval.
+
+## Contractor API
+
+The role picker is a local preview identity mechanism, not production authentication. The server issues an expiring token and derives subsequent actor identity from it; action payloads cannot choose another task owner or approver.
+
+| Route | Contract |
 | --- | --- |
-| `POST /api/projects/select` | `project_id`: selector ID from the table above |
-| `POST /api/messages` | `sender_id`, `raw_text`, `subject`, optional `case_id`, `attachments` |
-| `POST /api/message-summary` | `message_id`; returns `job_id` |
-| `GET /api/jobs/{job_id}` | Poll until `completed` or `failed`; completed summary result includes refreshed bootstrap |
-| `GET /api/attachments/{id}` | Original image bytes, restricted to references in the selected project |
-| `POST /api/operations` | `operation: {type, ...}`; route uses PM actor |
-| `POST /api/operations/respond` | Counterpart simulator only: `actor_id`, `operation`; not a production contractor-auth API |
+| `GET /api/contractor/accounts` | Recorded assigned parties and inquiry recipients |
+| `POST /api/contractor/login` | `{actor_id}` → `{token, actor}` |
+| `GET /api/contractor/bootstrap` | Assigned projects with opaque `project_version`, owned tasks, timeline, reports, offers, bookings and updates |
+| `POST /api/contractor/action` | `{project_id, expected_project_version, action}` → refreshed contractor bootstrap |
+| `GET /api/contractor/jobs/{job_id}` | Summary-job status limited to its actor |
+| `GET /api/contractor/attachments/{project_selector}/{attachment_id}` | Checks project membership and original-report access |
+| `POST /api/contractor/logout` | Invalidates preview session |
 
-Example original report (substitute the current version and a recorded sender):
+After login, send `Authorization: Bearer <token>`; POST requires `Content-Type: application/json`. `project_version` is an opaque snapshot hash: do not increment it or substitute the PM version. Contractor writes are project-scoped and never switch PM selection. Updating the selected project invalidates stale PM screens too.
+
+Example report action, using a current token/hash and an owned task:
 
 ```json
-{"expected_version":12,"sender_id":"electrician","subject":"Additional electrical support","raw_text":"Please arrange qualified support to resolve the reported metering discrepancy.","attachments":[]}
+{"project_id":"harbor_components","expected_project_version":"<opaque snapshot hash>","action":{"type":"report_problem","client_report_id":"report-20261107-001","task_id":"t_unload","subject":"Replacement rigging support","raw_text":"The original unloading slot conflicts with the delivery update. Please arrange a replacement mobilization.","urgency":2,"attachments":[],"support":{"capability":"rigging","mode":"takeover","duration_hours":1}}}
 ```
 
-Messages accept 1–40,000 text characters, subject up to 250, and at most four images of 4 MiB each. Each attachment is `{name, mime_type, data_base64}`; PNG/JPEG/WebP only, with raw base64 rather than a data URL. Metadata and bytes are saved atomically. Responses contain original messages in `operations.messages`; the endpoint currently generates the message ID, so an integration must add an external-report ID mapping/idempotency guard before retrying deliveries.
+Retain `client_report_id` on retries: 8–100 letters, digits, hyphens or underscores. Identical content is idempotent; changed content with the same ID is rejected. After 409, refresh the version before retrying. A new report or revised content needs a new ID.
 
-Live analysis saves `message.summary` separately from `assertions`, `image_observations`, and `extraction`. A validated vendor-help request can open a case and inquiries. Claims remain reported observations; neither summary nor photo can authorize work, establish an engineering finding or close a utility gate.
+Actions: `report_problem` / `message`, `completion_report`, `confirm_booking`, `receive_vendor_reply`. Only the assigned task owner may report/complete work, and only the named counterpart may confirm a booking or answer its inquiry. Completion requires `attest_complete: true`, a finished work window and domain prerequisites; it does not replace independent acceptance. Read `contractor_bridge.apply` and `operations.apply` for exact payloads.
 
-Operations follow `request_availability` → `receive_vendor_reply` → `propose_vendor` → `approve_proposal` / `request_approval` → `commit_proposal` → `confirm_booking`. Use existing case, inquiry, proposal and booking IDs returned by the server. `approve_and_commit` combines two validated PM steps. `reject_proposal` and `request_clarification` retain source history. Read `operations.apply` and `tests/test_operations.py` for exact payloads and validations. Scripted replies are available through `simulate_vendor_replies`; no external messages are sent.
+Support capabilities: `rigging`, `electrical_ct`, `epc_interconnection`. `mode: before` requests preceding work; automatic `takeover` is limited to rigging of `t_unload`. Other trades/takeovers, changes to authorized packages and completed-work rework remain for PM scope review. Urgency is 1 (highest) through 5. Supported requests link matching cases or create scoped cases and local availability inquiries; they cannot approve spending or overwrite utility/customer authority.
 
-Approval binds to the exact quote, scope, design and project revision. Price/date/qualification/capacity changes require revalidation. Approval, plan commitment, counterpart booking, physical completion and independent acceptance stay separate. `POLICY_DEMO_01` is an authored delegation policy, not an EQORE internal policy.
+## Originals and model analysis
 
-## Differences to resolve with teammates
+Reports accept 1–40,000 text characters, subject up to 250, and four PNG/JPEG/WebP images of at most 4 MiB each. Attachments are `{name, mime_type, data_base64}` with raw base64, not a data URL. Original text, images and report linkage persist together. PM `/api/messages` still lacks contractor report-id idempotency; external adapters should use the contractor flow.
 
-Inspected contractor ref `origin/4-contractor-portal` at `1dc494c`, and command-center ref `origin/1-install-command-center` at `8a6f079`. Recheck their latest contracts before integration.
+A new contractor message starts project-scoped ChatGPT analysis when connected and a model slot is free. The original is saved first. Concurrent changes to that project discard stale analysis; changing PM selection alone does not redirect it. Busy/failed analysis leaves the original available for PM retry. No login or a failed call means no live summary, not an undisclosed fixed-rule substitute. `message.summary` is separate from reported `assertions`, `image_observations` and `extraction`; no model text grants authority or certifies engineering work.
 
-- Contractor and command-center share 25 `JOB-###` records and contractor task IDs such as `T-JOB-001-electrical`. PM uses the three distinct projects above. No valid crosswalk exists yet: do not equate sites just because city or industry matches. Agree on one catalog, then map project, task, party and vendor IDs explicitly.
-- Contractor uses a 12-step installation template, date-only work/calendar-day durations and `done`; PM has post-signing phases, hourly windows, explicit gates and `completed`. `t_utility` is pre-install review, not permission to operate. Contractor commissioning precedes PTO; PM's operational commissioning follows operating authorization. Preserve the distinction between permitted acceptance testing and operation when mapping these steps.
-- Contractor owns a separate JSON document (`GET/PUT /api/state`, `base_version`); command-center keeps localStorage; PM owns SQLite snapshots. Do not mirror whole states both ways or let two schedulers commit competing dates. Select one authoritative mutation path and publish its resulting task/date/approval projections back to the other views.
-- Contractor currently allows six uploaded photos and supports more trades. PM allows four and three vendor capabilities. Align validation explicitly; reject unsupported mappings instead of silently dropping photos or treating utility/AHJ parties as interchangeable vendors.
-- Contractor uses Anthropic summaries; PM uses authenticated Codex/ChatGPT. Preserve provider/mode/error provenance. Choose one report-analysis service or keep both explicitly separate; do not relabel fixed-rule output as live LLM output.
-- **CSS compatibility:** contractor `index.html` imports `../eqore-demo/web/styles.css`, expecting v0.4 tokens/classes (`--navy`, `--paper`, `.app-shell`, `.button`, `.panel`). That import contract is preserved: `styles.css` retains the old base, while the v0.5 PM page loads `pm.css`. `legacy.css` serves the older testing UI. Future shared tokens/components should be extracted deliberately; do not replace the compatibility stylesheet with the PM layout.
+## Boundaries and compatibility
 
-## Suggested integration sequence
+Offer → exact proposal → authorized approval → commitment → counterpart booking → evidenced work → independent acceptance remain separate. Quotes, qualifications, scope, design, calendars and authority are rechecked. Posted actuals do not rise on approval. Shared cost allocations are not counted once per vendor. ETA differs from physical receipt; installation-stage utility review differs from operating authorization; available access windows differ from shutdown permission.
 
-1. Run both modules unchanged and their tests (`node contractor/model.test.js`, `node command-center/engine.test.js` from repository root). Verify the contractor's preserved base CSS import and the PM page's separate `pm.css` load.
-2. Agree on one project catalog and explicit ID/time/status mappings. Start with one matched test project and one electrical-support report; preserve raw text, photos, source identity and external report ID.
-3. Add a server adapter that validates project membership and authenticated contractor identity, then ingests the original report. Have PM triage create the case. Do not accept a browser-supplied actor as proof of authority.
-4. Drive vendor offers and PM approval through one canonical domain service. Return committed schedule changes and approval/booking status to the contractor portal; show pending acceptance separately from completed work.
-5. Test duplicate deliveries, stale versions, concurrent PM/contractor edits, changed quotes, expired qualifications, above-limit approval, conflicting crews and missing utility acceptance. Compare budgets and dates in both views after each transition.
-6. Before a shared deployment, replace local actor impersonation with real authentication/authorization and project-scoped requests. The PM server currently uses one globally selected project/session, not per-user selection; two users switching projects can interfere. It accepts only localhost Host/Origin values and binds to loopback, so the contractor's port 8780 cannot directly call it from a browser. Design an authenticated same-origin gateway or explicit scoped integration API; do not just remove these checks.
+PM uses `web/pm.css`; the new partner page uses `web/contractor.css`. `web/styles.css` preserves the v0.4 import contract of the original sibling contractor app. `legacy.css` serves `/legacy.html`, the internal evaluation workspace outside primary PM navigation. Original sibling modules remain independently runnable references, not additional authorities over unified state.
 
-The UI is presentation-ready for the hackathon; data, outreach, bookings and delegated roles remain authored demo fixtures. Production communications, authentication and a unified contractor backend are not implemented in this version. Source scope and assumptions remain in `README.md` and `docs/PM_VENDOR_SOURCES.md`.
+The server binds to loopback and validates localhost Host/Origin. PM still has one globally selected session; simultaneous PM users need per-user selection and real authentication before shared deployment. Contractor project hashes prevent accidental cross-project writes but do not make the preview role picker production security. Inquiries and notifications are local records, not external email. Projects, credentials, prices, ratings and delegated roles remain authored demonstration data; `POLICY_DEMO_01` is not EQORE's internal SOP.

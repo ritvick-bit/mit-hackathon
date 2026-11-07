@@ -4,7 +4,8 @@
   const ui = {
     data:null, view:'portfolio', caseId:null, messageId:null, vendorId:null, phaseId:null, tab:'change', busy:false, notice:null, job:null, cluster:false, pages:{
     }
-    , calendarFilter:'upcoming', vendorFilter:'all', vendorQuery:'', dialog:null
+    , calendarFilter:'upcoming', vendorFilter:'all', vendorQuery:'', dialog:null,
+    portfolioFilter:'all', mapRegion:'MA', resourceTab:'teams', subcontractId:null, weekOffset:0, updates:null
   }
   ;
   const arr = x => Array.isArray(x) ? x : x && typeof x === 'object' ? Object.values(x) : [];
@@ -23,10 +24,12 @@
   const ops = () => ui.data?.operations || {
   }
   ;
+  const resources = () => ui.data?.workspace?.resources || {};
   const people = () => arr(state().stakeholders);
   const person = id => people().find(x => x.id === id);
   const personName = id => displayName(person(id)?.name || id || 'Unassigned');
   const taskName = id => arr(state().tasks).find(x => x.id === id)?.title || id;
+  const contractorRequests = () => arr(ui.data?.workspace?.contractor_requests).filter(r=>!r.case_id&&!['completed','closed','resolved','rejected'].includes(r.status));
   const cases = () => arr(ops().cases).slice().sort((a,b) => (Number(b.priority)||0) - (Number(a.priority)||0));
   const messages = () => arr(ops().messages).slice().reverse().sort((a,b) => String(b.received_at).localeCompare(String(a.received_at)));
   const vendors = () => arr(ops().vendors || ui.data?.vendors).map(v => ({...v, name: displayName(v.name)}));
@@ -96,12 +99,30 @@
     return rows.slice(p*size,(p+1)*size);
   }
   function shell(content){
-    const nav=[['portfolio','Portfolio'],['site','Site overview'],['calendar','Calendar'],['inbox','Inbox'],['vendor','Vendors']];
+    const nav=[['portfolio','Portfolio'],['site','Site overview'],['calendar','Calendar'],['subcontractors','Subcontractors'],['procurement','Procurement'],['readiness','Readiness'],['inbox','Inbox'],['vendor','Vendors']];
     const current=ui.view==='vendors'||ui.view==='vendor-profile'?'vendor':ui.view;
-    return `<div class="shell"><aside class="rail"><button class="brand" data-action="nav" data-id="portfolio" aria-label="EQORE portfolio"><span class="brand-mark">e</span><strong>EQORE</strong></button><nav aria-label="Workspace navigation">${nav.map(([k,label])=>`<button data-action="nav" data-id="${k==='vendor'?'vendors':k}" aria-label="${label}" title="${label}" class="rail-link ${current===k?'selected':''}" ${current===k?'aria-current="page"':''}>${icon(k)}<span>${label}</span></button>`).join('')}</nav></aside><div class="workspace"><header class="topbar"><div class="top-location">${icon('portfolio')}<span>${ui.view==='portfolio'?'Deployment portfolio':esc(project().name||'Workspace')}</span>${ui.view!=='portfolio'?`<span class="muted">· ${esc(String(project().site||project().location||'').split(' · ')[0])}</span>`:''}</div><div class="top-right"><button class="about-link" data-action="nav" data-id="about">About</button><span class="runtime"><i class="${ui.data.runtime?.available&&ui.data.runtime?.authenticated?'on':''}"></i>${ui.data.runtime?.available&&ui.data.runtime?.authenticated?'ChatGPT connected':'ChatGPT unavailable'}</span><button class="icon-button" data-action="refresh" aria-label="Refresh current records" ${ui.busy?'disabled':''}>${icon('refresh')}</button><div class="avatar" title="Deployment PM">PM</div></div></header><main id="main" class="main ${ui.view==='site'?'site-main':''}">${notices()}${content}</main><footer class="footer"><span>Deployment workspace</span><span>Project clock: ${esc(dt(project().now,true))} · ${esc(timezone())}</span></footer></div></div>${ui.dialog?dialog():''}`;
+    return `<div class="shell"><aside class="rail"><button class="brand" data-action="nav" data-id="portfolio" aria-label="EQORE portfolio"><span class="brand-mark">e</span><strong>EQORE</strong></button><nav aria-label="Workspace navigation">${nav.map(([k,label])=>`<button data-action="nav" data-id="${k==='vendor'?'vendors':k}" aria-label="${label}" title="${label}" class="rail-link ${current===k?'selected':''}" ${current===k?'aria-current="page"':''}>${icon(k==='subcontractors'?'vendor':k==='readiness'?'check':k==='procurement'?'paper':k)}<span>${label}</span></button>`).join('')}</nav><a class="contractor-link" href="/contractor.html" target="_blank" rel="noopener">${icon('arrow')}<span>Contractor portal ↗</span></a></aside><div class="workspace"><header class="topbar"><div class="top-location">${icon('portfolio')}<span>${ui.view==='portfolio'?'Deployment portfolio':esc(project().name||'Workspace')}</span>${ui.view!=='portfolio'?`<span class="muted">· ${esc(String(project().site||project().location||'').split(' · ')[0])}</span>`:''}</div><div class="top-right"><span id="updates-slot" aria-live="polite">${updateIndicator()}</span><button class="about-link" data-action="nav" data-id="about">About</button><span class="runtime"><i class="${ui.data.runtime?.available&&ui.data.runtime?.authenticated?'on':''}"></i>${ui.data.runtime?.available&&ui.data.runtime?.authenticated?'ChatGPT connected':'ChatGPT unavailable'}</span><button class="icon-button" data-action="refresh" aria-label="Refresh current records" ${ui.busy?'disabled':''}>${icon('refresh')}</button><div class="avatar" title="Deployment PM">PM</div></div></header><main id="main" class="main ${ui.view==='site'?'site-main':''}">${notices()}${content}</main><footer class="footer"><span>Deployment workspace</span><span>Project clock: ${esc(dt(project().now,true))} · ${esc(timezone())}</span></footer></div></div>${ui.dialog?dialog():''}`;
+  }
+  function updateIndicator() {
+    return ui.updates?`<button class="updates-button" data-action="refresh" title="Refresh current project without changing your selection">New project updates · Refresh</button>`:'';
+  }
+  async function checkUpdates() {
+    if(!ui.data||ui.busy||document.hidden)return;
+    const selector=project().demo_project_id;
+    if(!selector)return;
+    try {
+      const update=await api('/api/updates?project_id='+encodeURIComponent(selector));
+      if(selector!==project().demo_project_id)return;
+      const revision=ui.data.workspace?.portfolio_revision;
+      if(revision!=null&&update.portfolio_revision!==revision) {
+        ui.updates=update;
+        const slot=document.getElementById('updates-slot');
+        if(slot)slot.innerHTML=updateIndicator();
+      }
+    } catch { /* Background connectivity checks must not interrupt an active form. */ }
   }
   function notices(){
-    return `${ui.notice?`<div class="notice ${ui.notice.error?'error':''}" role="${ui.notice.error?'alert':'status'}"><span>${esc(ui.notice.text)}</span><button data-action="dismiss" aria-label="Dismiss notice">×</button></div>`:''}${ui.job?`<div class="notice" role="status"><span class="spinner"></span><span>${esc(ui.job)} · fresh ChatGPT inference</span></div>`:''}`;
+    return `${ui.data?.session_version===-1?`<div class="notice"><span>Another PM selected a different site. Reopen this site to make changes.</span>${btn('Reopen this site','project',project().demo_project_id,'quiet small-button')}</div>`:''}${ui.notice?`<div class="notice ${ui.notice.error?'error':''}" role="${ui.notice.error?'alert':'status'}"><span>${esc(ui.notice.text)}</span><button data-action="dismiss" aria-label="Dismiss notice">×</button></div>`:''}${ui.job?`<div class="notice" role="status"><span class="spinner"></span><span>${esc(ui.job)} · fresh ChatGPT inference</span></div>`:''}`;
   }
   function projectSummary(p){
     const x=p.operation_summary||{
@@ -113,10 +134,51 @@
     }
     ;
   }
+  function readinessLabel(r) {
+    if(!r || r.total_count == null)return 'Readiness not assessed';
+    return `${r.accepted_count ?? 0}/${r.total_count} checks accepted`;
+  }
+  function projectGeography(p) {
+    return p.geography || p.resource_summary?.geography || p.resources?.geography || {};
+  }
+  function projectReadiness(p) {
+    return p.readiness || p.resource_summary?.readiness || p.resources?.readiness;
+  }
+  function mapPoint(geo) {
+    if(geo.lat==null||geo.lng==null||!Number.isFinite(Number(geo.lat))||!Number.isFinite(Number(geo.lng)))return null;
+    // Albers equal-area projection aligned to the bundled US outline. Locations
+    // are city-level reference coordinates, not surveyed project boundaries.
+    const raw = (lat,lng) => {
+      const rad = Math.PI / 180;
+      const n = (Math.sin(29.5*rad)+Math.sin(45.5*rad))/2;
+      const c = Math.cos(29.5*rad)**2 + 2*n*Math.sin(29.5*rad);
+      const rho = Math.sqrt(c-2*n*Math.sin(lat*rad))/n;
+      const theta = n*(lng+96)*rad;
+      return [rho*Math.sin(theta),rho*Math.cos(theta)];
+    };
+    const a=raw(42.746,-73.264),b=raw(42.05,-73.508),v=raw(Number(geo.lat),Number(geo.lng));
+    const scale=((b[0]-a[0])*(-.3)+(b[1]-a[1])*8.5)/((b[0]-a[0])**2+(b[1]-a[1])**2);
+    return [530+(v[0]-a[0])*scale,92.4+(v[1]-a[1])*scale];
+  }
+  function regionalMap(projects) {
+    const regional=ui.mapRegion==='MA';
+    const positioned=projects.map(p=>({p,geo:projectGeography(p),point:mapPoint(projectGeography(p))})).filter(x=>x.point);
+    return `<div class="regional-map"><svg class="portfolio-map" viewBox="${regional?'518 73 62 43':'0 0 600 340'}" aria-label="${regional?'Massachusetts':'United States'} project locations"><image href="/map.svg" x="0" y="0" width="600" height="340"/>${regional?'<text class="map-area-label" x="522" y="80">MASSACHUSETTS</text><text class="map-water-label" x="565" y="109">ATLANTIC</text>':''}${positioned.map(({p,geo,point},i)=>{
+      const sum=projectSummary(p),color=sum.priority>=90?'urgent':sum.priority>=70?'attention':'tracking';
+      return `<g class="site-marker ${color}" role="button" tabindex="0" data-action="project" data-id="${esc(p.id)}" aria-label="Open ${esc(p.name)}, ${esc(priority(sum.priority))}"><title>${esc(p.name)} · ${esc(geo.city||p.site)} · ${esc(sum.title)}</title><circle class="marker-halo" cx="${point[0]}" cy="${point[1]}" r="${regional?1.5:4.5}"/><circle class="marker-core" cx="${point[0]}" cy="${point[1]}" r="${regional?.75:2.3}"/>${regional?`<text class="marker-label" text-anchor="${geo.city==='Lowell'?'end':'start'}" x="${point[0]+(geo.city==='Lowell'?-1.8:1.8)}" y="${point[1]-.9}">${esc(geo.city||p.name)}</text><text class="marker-index" x="${point[0]}" y="${point[1]+.28}">${i+1}</text>`:''}</g>`;
+    }).join('')}</svg>${!positioned.length?'<div class="map-unavailable">Project coordinates have not been recorded. Choose a site from the list.</div>':''}</div><div class="map-caption"><span><i class="priority-dot hot"></i> Urgent <i class="priority-dot amber"></i> High <i class="priority-dot green"></i> Other</span><span>City-level locations · click a dot to open its project</span></div>`;
+  }
   function portfolio(){
-    const projects=arr(ui.data.projects).slice().sort((a,b)=>projectSummary(b).priority-projectSummary(a).priority);
-    const count=projects.reduce((n,p)=>n+projectSummary(p).count,0);
-    return `${heading('Where do you need to intervene?','A portfolio view of the decisions holding your sites back.',pill(`${projects.length} active sites`),'YOUR DEPLOYMENT PORTFOLIO')}<div class="portfolio-metrics"><div><strong>${projects.length}</strong><span>sites in delivery</span></div><div><strong>${count}</strong><span>open decision cases</span></div><div><strong>${projects.reduce((n,p)=>n+projectSummary(p).pending,0)}</strong><span>vendor replies pending</span></div><div class="portfolio-hint">Priority follows the live project records.<br>Open a site to review its full context.</div></div><div class="portfolio-grid fill"><section class="panel map-panel">${panelHead('United States',pill('Massachusetts footprint'))}<div class="map-canvas"><div class="map-image-frame"><img class="us-map" src="/map.svg" alt="United States with Massachusetts highlighted"><button class="map-cluster ${projects.some(p=>projectSummary(p).priority>=90)?'urgent':''}" data-action="cluster" aria-label="Show ${projects.length} Massachusetts sites">${projects.length}</button><span class="map-region">Massachusetts</span></div>${ui.cluster?`<div class="cluster-popover"><div class="cluster-title">Massachusetts sites<button data-action="cluster" aria-label="Close site list">×</button></div>${projects.map(p=>`<button data-action="project" data-id="${esc(p.id)}"><i class="priority-dot ${projectSummary(p).priority>=90?'hot':'amber'}"></i><span><strong>${esc(p.name)}</strong><small>${esc(String(p.site).split(' · ')[0])}</small></span>${icon('chevron')}</button>`).join('')}</div>`:''}</div><div class="map-caption"><span><i class="priority-dot hot"></i> Urgent <i class="priority-dot amber"></i> Attention <i class="priority-dot green"></i> Tracking</span><span>Nearby sites are grouped. Click the cluster to choose a site.</span></div></section><section class="panel priority-sites">${panelHead('Sites by priority',pill(`${projects.length} sites`))}<div class="panel-scroll">${projects.map((p,i)=>{const s=projectSummary(p);return `<button class="project-row" data-action="project" data-id="${esc(p.id)}"><div class="row-top"><span class="project-index">0${i+1}</span>${pill(priority(s.priority))}</div><h2>${esc(p.name)}</h2><p class="muted small">${esc(String(p.site).split(' · ')[0])}</p><p class="project-reason">${esc(s.title)}</p><div class="row-meta"><span>${s.count} open cases · ${p.metrics?.active_bottlenecks??0} blockers</span><span class="open-site">Open site ${icon('arrow')}</span></div></button>`;}).join('')}</div></section></div>`;
+    const all=arr(ui.data.projects).slice().sort((a,b)=>projectSummary(b).priority-projectSummary(a).priority);
+    const matches=p=>ui.portfolioFilter==='all'||(ui.portfolioFilter==='urgent'?projectSummary(p).priority>=90:ui.portfolioFilter==='high'?projectSummary(p).priority>=70&&projectSummary(p).priority<90:projectSummary(p).priority<70);
+    const projects=all.filter(matches);
+    const count=all.reduce((n,p)=>n+projectSummary(p).count,0);
+    const waiting=all.filter(p=>(projectReadiness(p)?.waiting_count||0)>0).length;
+    const filters=[['all','All sites'],['urgent','Urgent'],['high','High priority'],['other','Other']];
+    return `${heading('Where do you need to intervene?','Priority, readiness and the next decision across your active projects.',pill(`${all.length} active sites`),'DEPLOYMENT PORTFOLIO')}<div class="portfolio-metrics"><div><strong>${all.length}</strong><span>sites in delivery</span></div><div><strong>${count}</strong><span>open decision cases</span></div><div><strong>${all.reduce((n,p)=>n+projectSummary(p).pending,0)}</strong><span>vendor replies pending</span></div><div><strong>${waiting}</strong><span>sites with open readiness checks</span></div></div><div class="portfolio-grid fill"><section class="panel map-panel">${panelHead(ui.mapRegion==='MA'?'Massachusetts sites':'United States',`<div class="segmented">${[['US','US overview'],['MA','Regional detail']].map(([id,label])=>`<button data-action="map-region" data-id="${id}" class="${ui.mapRegion===id?'active':''}">${label}</button>`).join('')}</div>`)}${regionalMap(projects)}</section><section class="panel priority-sites">${panelHead('Sites by priority',pill(`${projects.length} shown`))}<div class="portfolio-filters segmented">${filters.map(([id,label])=>`<button data-action="portfolio-filter" data-id="${id}" class="${ui.portfolioFilter===id?'active':''}">${label}</button>`).join('')}</div><div class="panel-scroll">${projects.map((p,i)=>{
+      const sum=projectSummary(p),r=projectReadiness(p);
+      return `<button class="project-row" data-action="project" data-id="${esc(p.id)}"><div class="row-top"><span class="project-index">${String(i+1).padStart(2,'0')}</span>${pill(priority(sum.priority))}</div><h2>${esc(p.name)}</h2><p class="muted small">${esc(String(p.site).split(' · ')[0])} · ${p.system?.power_kw??'—'} kW</p><p class="project-reason">${esc(sum.title)}</p><div class="project-readiness"><span>${esc(readinessLabel(r))}</span>${r?.total_count?`<span class="readiness-meter"><i style="width:${Math.max(0,Math.min(100,100*(r.accepted_count||0)/r.total_count))}%"></i></span>`:''}</div><div class="row-meta"><span>${sum.count} open cases · ${p.metrics?.active_bottlenecks??0} blockers</span><span class="open-site">Open site ${icon('arrow')}</span></div></button>`;
+    }).join('')||empty('No sites match this priority','Choose another priority to see the current portfolio.')}</div></section></div>`;
   }
   function finance(){
     return ui.data.dashboard?.finance||{
@@ -131,6 +193,7 @@
     return `<div class="phase-ribbon" aria-label="Post-signing project phases">${arr(ui.data.phases?.phases).map((p,i)=>`<button data-action="phase" data-id="${esc(p.id)}" class="phase-step ${esc(p.status)}" title="${esc(p.title)}: ${esc(p.status_reason)}"><span>${p.status==='completed'?'✓':String(i+1).padStart(2,'0')}</span><strong>${esc(p.title.replace(' · entry','').replace(' & ',' / '))}</strong><small>${esc(human(p.status))}</small></button>`).join('')}</div>`;
   }
   function caseRow(c,i,compact=false){
+    if(c.contractor_request)return `<button class="case-row ${compact?'compact':''}" data-action="message" data-id="${esc(c.message_id)}"><span class="rank">${i+1}</span><div class="case-copy"><div class="row-top"><h3>${esc(c.title||c.task_title||'Contractor request')}</h3>${pill(priority(c.priority))}</div><p class="clamp2">${esc(c.message?.text||c.message?.raw_text||c.review_reason||'A contractor submitted a request that needs scope and impact review.')}</p><div class="row-meta"><span class="contractor-report-type">${esc(human(c.type||'Contractor report'))}</span><span>${esc(displayName(c.actor_name||personName(c.actor_id)))}</span><span>Review original →</span></div></div></button>`;
     const p=c.current_proposal;
     return `<button class="case-row ${compact?'compact':''}" data-action="case" data-id="${esc(c.id)}"><span class="rank">${i+1}</span><div class="case-copy"><div class="row-top"><h3>${esc(c.title)}</h3>${pill(priority(c.priority))}</div><p class="clamp2">${esc(c.why||c.request)}</p><div class="row-meta"><span>${esc(human(c.status))}</span><span>${p?money(p.cost_delta):arr(c.options).filter(x=>x.status==='available'||x.quote_id).length+' vendor offers'}</span><span class="action-text">Review decision →</span></div></div></button>`;
   }
@@ -189,17 +252,55 @@
     return `<button class="message-row ${ui.messageId===m.id?'selected':''}" data-action="message" data-id="${esc(m.id)}"><span class="sender-avatar">${esc((m.sender_name||personName(m.issuer_id||m.sender_id)).slice(0,1))}</span><span class="message-copy"><span class="row-top"><strong>${esc(displayName(m.sender_name||personName(m.issuer_id||m.sender_id)))}</strong><small>${esc(dt(m.received_at))}</small></span><b>${esc(m.subject||'Stakeholder update')}</b><small class="clamp2">${esc(messageSummary(m)||m.text||m.raw_text)}</small></span></button>`;
   }
   function site(){
-    const p=project(),cs=cases().filter(c=>!closed(c)),bs=arr(ui.data.dashboard?.bottlenecks).filter(b=>b.status!=='upcoming');
+    const p=project(),cs=[...cases().filter(c=>!closed(c)),...contractorRequests().map(r=>({...r,contractor_request:true}))].sort((a,b)=>(b.priority||0)-(a.priority||0)),bs=arr(ui.data.dashboard?.bottlenecks).filter(b=>b.status!=='upcoming');
     const selected=ui.tab==='constraints';
     const rows=selected?bs:cs;
     const key=selected?'constraints':'sitecases';
     const cal=upcomingRows().slice(0,2);
-    return `${crumb()}${heading(p.name,`${String(p.site||p.location||'').split(' · ')[0]} · ${p.system?.power_kw??'—'} kW / ${p.system?.capacity_kwh??'—'} kWh · Target ${dt(p.target_handoff||p.target_date)}`,btn('Project details','nav','details','quiet'))}${budgetTiles()}${phasesRibbon()}<div class="site-grid fill"><section class="panel decision-queue">${panelHead('Your priority queue',pill(`${cs.length} open cases`))}<div class="tabs compact-tabs"><button data-action="queue-tab" data-id="cases" class="${!selected?'active':''}">Decisions & follow-ups <span>${cs.length}</span></button><button data-action="queue-tab" data-id="constraints" class="${selected?'active':''}">Project bottlenecks <span>${bs.length}</span></button></div><div class="panel-scroll">${pageRows(rows,key,3).map((c,i)=>selected?engineRow(c,(ui.pages[key]||0)*3+i):caseRow(c,(ui.pages[key]||0)*3+i,true)).join('')||empty('No open decision cases','Project prerequisites and confirmations remain visible in the bottlenecks tab.')}</div>${pager(key,rows.length,3)}</section><div class="site-side"><section class="panel">${panelHead('Today & this week',link('Calendar','calendar'))}<div class="mini-scroll">${cal.map(timeRow).join('')||empty('No upcoming checkpoints','Open the calendar to view the whole project.')}</div></section><section class="panel">${panelHead('Latest stakeholder updates',link('Inbox','inbox'))}<div class="mini-scroll">${messages().slice(0,2).map(messageRow).join('')||empty('No reports received','Add a field update in the inbox.')}</div></section></div></div>`;
+    return `${crumb()}${heading(p.name,`${String(p.site||p.location||'').split(' · ')[0]} · ${p.system?.power_kw??'—'} kW / ${p.system?.capacity_kwh??'—'} kWh · Target ${dt(p.target_handoff||p.target_date)}`,btn('Project details','nav','details','quiet'))}${budgetTiles()}${phasesRibbon()}${siteResourceLinks()}<div class="site-grid fill"><section class="panel decision-queue">${panelHead('Your priority queue',pill(`${cs.length} open cases`))}<div class="tabs compact-tabs"><button data-action="queue-tab" data-id="cases" class="${!selected?'active':''}">Decisions & follow-ups <span>${cs.length}</span></button><button data-action="queue-tab" data-id="constraints" class="${selected?'active':''}">Project bottlenecks <span>${bs.length}</span></button></div><div class="panel-scroll">${pageRows(rows,key,3).map((c,i)=>selected?engineRow(c,(ui.pages[key]||0)*3+i):caseRow(c,(ui.pages[key]||0)*3+i,true)).join('')||empty('No open decision cases','Project prerequisites and confirmations remain visible in the bottlenecks tab.')}</div>${pager(key,rows.length,3)}</section><div class="site-side"><section class="panel">${panelHead('Today & this week',link('Calendar','calendar'))}<div class="mini-scroll">${cal.map(timeRow).join('')||empty('No upcoming checkpoints','Open the calendar to view the whole project.')}</div></section><section class="panel">${panelHead('Latest stakeholder updates',link('Inbox','inbox'))}<div class="mini-scroll">${messages().slice(0,2).map(messageRow).join('')||empty('No reports received','Add a field update in the inbox.')}</div></section></div></div>`;
+  }
+  function siteResourceLinks() {
+    const r=resources(),m=r.metrics||{};
+    return `<nav class="site-resource-links" aria-label="Project delivery details"><button data-action="nav" data-id="subcontractors">${icon('vendor')}<span><strong>Subcontractors</strong><small>${m.subcontractor_count??arr(r.subcontracts).length} project partners</small></span>${icon('chevron')}</button><button data-action="nav" data-id="procurement">${icon('paper')}<span><strong>Procurement</strong><small>Delivery ${dt(r.procurement?.delivery?.eta)}</small></span>${icon('chevron')}</button><button data-action="nav" data-id="readiness">${icon('check')}<span><strong>Readiness</strong><small>${esc(readinessLabel(r.readiness))}</small></span>${icon('chevron')}</button></nav>`;
+  }
+  function evidenceButtons(ids) {
+    return arr(ids).map(id=>btn(id,'evidence-record',id,'quiet small-button')).join('');
+  }
+  function subcontractors() {
+    const r=resources(),teams=arr(r.subcontracts),selected=teams.find(x=>x.id===ui.subcontractId)||teams[0];
+    return `${crumb('Subcontractors')}${heading('Subcontractors & work packages','External delivery partners assigned to this project. Availability offers remain separate from bookings.',btn('Back to site','nav','site','quiet'))}<div class="tabs resource-tabs"><button data-action="resource-tab" data-id="teams" class="${ui.resourceTab==='teams'?'active':''}">Partners & scope</button><button data-action="resource-tab" data-id="schedule" class="${ui.resourceTab==='schedule'?'active':''}">Booking calendar</button></div>${ui.resourceTab==='schedule'?subcontractCalendar():`<div class="resource-grid fill"><section class="panel">${panelHead('Project partners',pill(`${teams.length} partners`))}<div class="panel-scroll">${pageRows(teams,'subcontractors',6).map(t=>`<button class="subcontract-row ${selected?.id===t.id?'selected':''}" data-action="subcontractor" data-id="${esc(t.id)}"><strong>${esc(displayName(t.organization||t.name))}</strong><span>${esc(t.role||'External subcontractor')}</span><small>${arr(t.tasks).length?`${t.completed_count??0}/${t.task_count??arr(t.tasks).length} work packages completed`:'Availability offer only · no assignment'}</small>${pill(t.status)}</button>`).join('')||empty('No subcontractors recorded','Record a responsible external partner before confirming delivery work.')}</div>${pager('subcontractors',teams.length,6)}</section><section class="panel"><div class="panel-scroll panel-body">${selected?subcontractDetail(selected):empty('Select a project partner')}</div></section></div>`}`;
+  }
+  function subcontractDetail(t) {
+    const offers=arr(t.offers),tasks=arr(t.tasks);
+    return `<div class="row-top"><div><span class="eyebrow">PROJECT SUBCONTRACTOR</span><h2>${esc(displayName(t.organization||t.name))}</h2><p class="muted small">${esc(displayName(t.name))} · ${esc(t.role)}</p></div>${pill(t.status)}</div><h3 class="section-title">Assigned scope & bookings</h3>${tasks.map(task=>`<article class="work-package"><div class="row-top"><strong>${esc(task.title)}</strong>${pill(task.status)}</div><p>${esc(dt(task.start,true))} → ${esc(dt(task.end,true))}</p><div class="small muted">${esc(task.duration_hours??'—')} hours · ${esc(task.confirmation||'Booking confirmation not recorded')}</div>${arr(task.required_gates).length?`<div class="gate-chips">${arr(task.required_gates).map(g=>pill(`${g.label||human(g.id)}: ${g.status||'not recorded'}`)).join('')}</div>`:''}${arr(task.evidence_ids).length?`<details class="technical-detail"><summary>Source evidence</summary>${evidenceButtons(task.evidence_ids)}</details>`:''}</article>`).join('')||'<p class="muted">No committed work package for this partner.</p>'}${offers.length?`<h3 class="section-title">Availability offers · not booked</h3>${offers.map(o=>`<article class="work-package offered"><div class="row-top"><strong>${esc(dt(o.earliest_start,true))}</strong>${pill(o.status||'offered')}</div><p>${money(o.total_price)} · ${esc(o.duration_hours??'—')} hours</p><small>Valid until ${esc(dt(o.expires_at,true))}. Scope and PM approval still apply.</small>${!o.eligible?`<p class="excluded">Not currently eligible: ${esc(arr(o.exclusion_reasons).join(' · ')||'Revalidation is required.')}</p>`:''}${o.case_id?btn('Review linked decision','case',o.case_id,'quiet small-button'):''}</article>`).join('')}`:''}${t.performance?`<h3 class="section-title">Recorded performance</h3><p class="small">${esc(performance(t.performance))}</p>`:''}${t.qualifications?`<details class="technical-detail"><summary>Qualifications and cost allocation</summary><p>${esc(readable(t.qualifications))}</p>${resourceCosts(t.cost_lines)}</details>`:''}`;
+  }
+  function addDay(date,amount) {
+    const value=new Date(`${date}T12:00:00Z`);value.setUTCDate(value.getUTCDate()+amount);return value.toISOString().slice(0,10);
+  }
+  function resourceCalendarRows() {
+    return arr(resources().calendar).map(e=>({...e,detail:e.confirmation||e.detail}));
+  }
+  function subcontractCalendar() {
+    const records=resourceCalendarRows(),teams=arr(resources().subcontracts);
+    const now=dayKey(project().now),start=addDay(now,ui.weekOffset*7),days=Array.from({length:7},(_,i)=>addDay(start,i));
+    const rows=teams.filter(t=>records.some(e=>e.owner_id===t.owner_id||e.owner_id===t.id));
+    return `<section class="panel fill subcontract-calendar">${panelHead(`${dt(days[0])} – ${dt(days[6])}`,`<div class="week-actions">${btn('←','week','-1','quiet small-button')}${btn('Project week','week','reset','quiet small-button')}${btn('→','week','1','quiet small-button')}</div>`)}<div class="calendar-legend resource-legend">${['confirmed','planned','offered','completed'].map(x=>pill(x)).join('')}<span>Project timezone: ${esc(timezone())}. This view does not imply availability on other projects.</span></div><div class="panel-scroll"><div class="subcontract-gantt"><div class="gantt-heading">External partner</div>${days.map(d=>`<div class="gantt-heading ${d===now?'today':''}">${esc(new Intl.DateTimeFormat('en-US',{weekday:'short',timeZone:'UTC'}).format(new Date(d+'T12:00:00Z')))}<strong>${esc(dt(d))}</strong></div>`).join('')}${rows.map(t=>`<div class="gantt-owner"><strong>${esc(displayName(t.organization||t.name))}</strong><small>${esc(t.role)}</small></div>${days.map(d=>{const entries=records.filter(e=>(e.owner_id===t.owner_id||e.owner_id===t.id)&&dayKey(e.start)<=d&&dayKey(e.end||e.start)>=d);return `<div class="gantt-day ${d===now?'today':''}">${entries.map(e=>`<button class="booking-chip ${esc(tone(e.status))}" data-action="resource-event" data-id="${esc(e.id)}"><strong>${esc(e.title)}</strong><small>${esc(human(e.status))}</small></button>`).join('')}</div>`;}).join('')}`).join('')}</div>${!rows.length?empty('No subcontractor work windows recorded','Assigned packages and scoped availability offers appear here when recorded.'):''}</div><div class="panel-bottom"><span class="fineprint">An empty day means no booking is recorded here, not that the subcontractor is available.</span>${btn('All project checkpoints','nav','calendar','quiet small-button')}</div></section>`;
+  }
+  function resourceCosts(lines) {
+    return arr(lines).length?`<table class="compare-table"><thead><tr><th>Allocation</th><th>Baseline</th><th>Committed</th><th>Actual</th></tr></thead><tbody>${arr(lines).map(l=>`<tr><th>${esc(l.label||l.category||l.id)}${l.allocation?`<small>${esc(l.allocation==='shared'?'Shared allocation · not a separate payable amount':'Exclusively attributed allocation')}</small>`:''}</th><td>${money(l.baseline)}</td><td>${money(l.committed)}</td><td>${money(l.actual)}</td></tr>`).join('')}</tbody></table>`:'';
+  }
+  function procurement() {
+    const p=resources().procurement||{},d=p.delivery||{},o=p.order||{},sh=p.shutdown||{};
+    return `${crumb('Procurement')}${heading('Procurement & site access','Track equipment, physical receipt and the customer window alongside the current plan.',btn('Back to site','nav','site','quiet'))}<div class="procurement-grid fill"><section class="panel"><div class="panel-scroll panel-body"><span class="eyebrow">EQUIPMENT & DELIVERY</span><h2>${esc(p.system?.power_kw??project().system?.power_kw??'—')} kW / ${esc(p.system?.capacity_kwh??project().system?.capacity_kwh??'—')} kWh system</h2><div class="pair"><span>Equipment order</span>${pill(o.status)}</div><div class="pair"><span>Latest delivery estimate</span><strong>${esc(dt(d.eta,true))}</strong></div><div class="pair"><span>Physical receipt</span>${pill(d.receipt_status)}</div><div class="pair"><span>Planned unloading</span><strong>${esc(dt(d.unload_start,true))}</strong></div>${d.detail?`<div class="reason-box ${d.conflict?'delivery-conflict':''}"><span class="eyebrow">${d.conflict?'SCHEDULE CONFLICT':'DELIVERY CONTEXT'}</span><p>${esc(d.detail)}</p></div>`:''}<h3 class="section-title">Source records</h3>${evidenceButtons([...arr(o.evidence_ids),...arr(d.eta_evidence_ids),...arr(d.receipt_evidence_ids)])||'<p class="muted small">No order or physical-receipt record linked.</p>'}<h3 class="section-title">Information still needed</h3><ul class="body-list">${arr(p.unknowns).map(x=>`<li>${esc(readable(x))}</li>`).join('')||'<li>No additional procurement unknowns are listed.</li>'}</ul></div></section><section class="panel"><div class="panel-scroll panel-body"><span class="eyebrow">CUSTOMER ACCESS</span><h2>Shutdown & work windows</h2><div class="pair"><span>Customer authorization</span>${pill(sh.status)}</div><div class="pair"><span>Planned tie-in</span><strong>${esc(dt(sh.planned_start,true))}</strong></div>${sh.detail?`<p class="fineprint">${esc(sh.detail)}</p>`:''}${arr(sh.windows).map(w=>`<div class="work-package"><strong>${esc(dt(w.start,true))} – ${esc(dt(w.end,true))}</strong><p class="small muted">${esc(w.status||'Recorded window; confirm scope and authority before use.')}</p></div>`).join('')||'<p class="muted">No customer work window is recorded.</p>'}${evidenceButtons(sh.evidence_ids)}<h3 class="section-title">Related cost allocations</h3>${resourceCosts(p.cost_lines)||'<p class="muted">No procurement cost allocation is recorded.</p>'}${btn('Full budget & expenses','nav','budget','quiet small-button')}</div></section></div>`;
+  }
+  function readiness() {
+    const r=resources().readiness||{},checks=arr(r.checks);
+    return `${crumb('Readiness')}${heading('Project readiness',readinessLabel(r)+' · evidence-backed prerequisites, not a dispatch authorization.',btn('Back to site','nav','site','quiet'))}<div class="readiness-overview"><div><strong>${r.accepted_count??0}</strong><span>accepted checks</span></div><div><strong>${r.waiting_count??0}</strong><span>checks still open</span></div><p>Next milestone: <strong class="milestone-name">${esc(r.next_milestone?.label||'Not recorded')}</strong> · ${esc(dt(r.next_milestone?.planned_start))}. Later-stage checks can remain open without blocking the current stage.</p></div><section class="panel fill">${panelHead('Readiness checks',btn('Project evidence','nav','evidence','quiet small-button'))}<div class="panel-scroll"><div class="readiness-check-grid">${checks.map(c=>`<article class="readiness-check"><span class="eyebrow">${esc(human(c.stage||'Project'))}</span><div class="row-top"><h3>${esc(c.label)}</h3>${pill(c.status,c.status==='accepted'?'green':c.status==='waiting'?'amber':'')}</div><p>${esc(c.detail||c.criteria)}</p>${c.criteria&&c.criteria!==c.detail?`<small class="muted">Required: ${esc(c.criteria)}</small>`:''}<div class="readiness-owner">${icon('vendor')} ${esc(personName(c.owner_id))}</div>${arr(c.task_ids).length?`<small class="muted">${esc(arr(c.task_ids).map(taskName).join(' · '))}</small>`:''}${arr(c.evidence_ids).length?`<details class="technical-detail"><summary>Acceptance evidence</summary>${evidenceButtons(c.evidence_ids)}</details>`:''}</article>`).join('')||empty('Readiness has not been assessed','Project evidence and acceptance gates will populate this view.')}</div></div></section>`;
   }
   function source(m,full=false){
     if(!m)return empty('No original message linked','This case may be derived from project evidence.');
-    const attachments=arr(m.attachments),summary=messageSummary(m);
-    return `<div class="source-head"><span class="sender-avatar">${esc((m.sender_name||personName(m.issuer_id)).slice(0,1))}</span><div><strong>${esc(displayName(m.sender_name||personName(m.issuer_id||m.sender_id)))}</strong><small>${esc(person(m.issuer_id||m.sender_id)?.role||m.sender_role||'Stakeholder')} · ${esc(dt(m.received_at,true))}</small></div>${pill('Original')}</div><h3 class="source-subject">${esc(m.subject||'Stakeholder report')}</h3><blockquote class="source-text ${full?'':'short'}">${esc(m.text||m.raw_text||'')}</blockquote>${attachments.length?`<div class="attachments">${attachments.map(a=>`<button class="attachment" data-action="attachment" data-id="${esc(a.id)}"><img src="/api/attachments/${encodeURIComponent(a.id)}" alt="${esc(a.name||a.filename||'Stakeholder attachment')}" loading="lazy"><span>${esc(a.name||a.filename||'Field image')}</span></button>`).join('')}</div>`:''}<div class="summary-box"><div class="row-top"><strong>${icon('spark')} PM reading summary</strong>${summary?pill('Live LLM','teal'):''}</div>${summary?`<p>${esc(summary)}</p>${arr(m.summary?.uncertainties||m.reading_summary?.uncertainties).length?`<p class="small muted">Uncertain: ${esc(arr(m.summary?.uncertainties||m.reading_summary?.uncertainties).join(' · '))}</p>`:''}`:'<p class="muted">A reading summary has not been generated for this report.</p>'}<div class="summary-actions">${btn(summary?'Refresh with ChatGPT':'Summarize & triage with ChatGPT','summarize',m.id,'quiet small-button',!(ui.data.runtime?.available&&ui.data.runtime?.authenticated))}</div></div>${full?`<p class="fineprint">Original text and attachments are preserved. Summary text helps you read; reported claims and validated project evidence remain separate.</p>`:`<button class="text-link" data-action="message" data-id="${esc(m.id)}">Read full report in inbox →</button>`}`;
+    const attachments=arr(m.attachments),summary=messageSummary(m),request=arr(ui.data?.workspace?.contractor_requests).find(r=>r.message_id===m.id);
+    return `<div class="source-head"><span class="sender-avatar">${esc((m.sender_name||personName(m.issuer_id)).slice(0,1))}</span><div><strong>${esc(displayName(m.sender_name||personName(m.issuer_id||m.sender_id)))}</strong><small>${esc(person(m.issuer_id||m.sender_id)?.role||m.sender_role||'Stakeholder')} · ${esc(dt(m.received_at,true))}</small></div>${pill('Original')}</div><h3 class="source-subject">${esc(m.subject||'Stakeholder report')}</h3>${request?`<div class="contractor-status">${pill(request.status)}<span>${esc(request.task_title||taskName(request.task_id))}</span><small>Contractor submission · changes require review and authorized scope.</small></div>`:''}<blockquote class="source-text ${full?'':'short'}">${esc(m.text||m.raw_text||'')}</blockquote>${attachments.length?`<div class="attachments">${attachments.map(a=>`<button class="attachment" data-action="attachment" data-id="${esc(a.id)}"><img src="/api/attachments/${encodeURIComponent(a.id)}${project().demo_project_id?'?project_id='+encodeURIComponent(project().demo_project_id):''}" alt="${esc(a.name||a.filename||'Stakeholder attachment')}" loading="lazy"><span>${esc(a.name||a.filename||'Field image')}</span></button>`).join('')}</div>`:''}<div class="summary-box"><div class="row-top"><strong>${icon('spark')} PM reading summary</strong>${summary?pill('Live LLM','teal'):''}</div>${summary?`<p>${esc(summary)}</p>${arr(m.summary?.uncertainties||m.reading_summary?.uncertainties).length?`<p class="small muted">Uncertain: ${esc(arr(m.summary?.uncertainties||m.reading_summary?.uncertainties).join(' · '))}</p>`:''}`:'<p class="muted">A reading summary has not been generated for this report.</p>'}<div class="summary-actions">${btn(summary?'Refresh with ChatGPT':'Summarize & triage with ChatGPT','summarize',m.id,'quiet small-button',!(ui.data.runtime?.available&&ui.data.runtime?.authenticated))}</div></div>${full?`<p class="fineprint">Original text and attachments are preserved. Summary text helps you read; reported claims and validated project evidence remain separate.</p>`:`<button class="text-link" data-action="message" data-id="${esc(m.id)}">Read full report in inbox →</button>`}`;
   }
   function caseTabs(){
     return `<div class="tabs"><button class="${ui.tab==='change'?'active':''}" data-action="case-tab" data-id="change">Proposed change</button><button class="${ui.tab==='vendors'?'active':''}" data-action="case-tab" data-id="vendors">Vendor options</button><button class="${ui.tab==='people'?'active':''}" data-action="case-tab" data-id="people">People & authority</button><button class="${ui.tab==='evidence'?'active':''}" data-action="case-tab" data-id="evidence">Evidence</button></div>`;
@@ -284,11 +385,11 @@
     const d=ui.dialog;
     if(d.type==='attachment'){
       const a=messages().flatMap(m=>arr(m.attachments)).find(x=>x.id===d.id);
-      return `<div class="modal-shade" data-action="close-dialog"><section class="modal image-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header><h2 id="modal-title">${esc(a?.name||a?.filename||'Original attachment')}</h2>${btn('Close','close-dialog','','quiet')}</header><img src="/api/attachments/${encodeURIComponent(d.id)}" alt="${esc(a?.name||'Original stakeholder image')}"><p>Original stakeholder attachment · ${esc(a?.mime_type||'image')}</p></section></div>`;
+      return `<div class="modal-shade" data-action="close-dialog"><section class="modal image-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header><h2 id="modal-title">${esc(a?.name||a?.filename||'Original attachment')}</h2>${btn('Close','close-dialog','','quiet')}</header><img src="/api/attachments/${encodeURIComponent(d.id)}${project().demo_project_id?'?project_id='+encodeURIComponent(project().demo_project_id):''}" alt="${esc(a?.name||'Original stakeholder image')}"><p>Original stakeholder attachment · ${esc(a?.mime_type||'image')}</p></section></div>`;
     }
-    if(d.type==='calendar'){
-      const e=calendarRows().find(x=>x.id===d.id);
-      return `<div class="modal-shade"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header><h2 id="modal-title">${esc(e?.title||'Calendar checkpoint')}</h2>${btn('Close','close-dialog','','quiet')}</header><div class="modal-body">${pill(e?.status)}<h3>${esc(dt(e?.start||e?.at,true))}</h3><p>${esc(e?.detail||'Planned project activity. Confirmations and acceptance remain separate.')}</p>${e?.owner_id||e?.owner?`<p>Owner: ${esc(e.owner_id?personName(e.owner_id):person(e.owner)?.name||vendors().find(v=>v.id===e.owner)?.name||e.owner)}</p>`:''}${e?.case_id?btn('Review linked decision','case',e.case_id,'primary'):''}</div></section></div>`;
+    if(d.type==='calendar'||d.type==='resource'){
+      const e=(d.type==='resource'?resourceCalendarRows():calendarRows()).find(x=>x.id===d.id);
+      return `<div class="modal-shade"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header><h2 id="modal-title">${esc(e?.title||'Calendar checkpoint')}</h2>${btn('Close','close-dialog','','quiet')}</header><div class="modal-body">${pill(e?.status)}<h3>${esc(dt(e?.start||e?.at,true))}</h3><p>${esc(e?.detail||'Planned project activity. Confirmations and acceptance remain separate.')}</p>${e?.eligible===false?`<p class="excluded">Not currently eligible: ${esc(arr(e.exclusion_reasons).join(' · ')||'Scope and availability need revalidation.')}</p>`:''}${e?.owner_id||e?.owner?`<p>Owner: ${esc(e.owner_id?personName(e.owner_id):person(e.owner)?.name||vendors().find(v=>v.id===e.owner)?.name||e.owner)}</p>`:''}${e?.case_id?btn('Review linked decision','case',e.case_id,'primary'):''}</div></section></div>`;
     }
     return `<div class="modal-shade"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header><h2 id="modal-title">${d.type==='reject'?'Reject this proposed option':'Request clarification'}</h2>${btn('Cancel','close-dialog','','quiet')}</header><form id="decision-note-form"><div class="modal-body"><p>The original issue remains open. Record the reason or information needed for the next revision.</p><label>${d.type==='reject'?'Reason for rejection':'Clarification request'}<textarea name="text" required rows="5" maxlength="4000" autofocus></textarea></label></div><div class="panel-bottom"><button class="btn primary" type="submit" ${ui.busy?'disabled':''}>${d.type==='reject'?'Record rejection':'Record clarification request'}</button></div></form></section></div>`;
   }
@@ -309,12 +410,12 @@
     return `${crumb('Evidence')}${heading('Project evidence','Original records, scope and supporting references.',btn('Back to site','nav','site','quiet'))}<div class="inbox-grid fill"><section class="panel">${panelHead('Evidence records',pill(records.length+' records'))}<div class="panel-scroll">${pageRows(records,'evidence',7).map(e=>`<button class="evidence-record ${current?.id===e.id?'selected':''}" data-action="evidence-record" data-id="${esc(e.id)}"><strong>${esc(e.title||e.id)}</strong><small>${esc(human(e.kind||'Project record'))} · ${esc(dt(e.received_at||e.effective_at,true))}</small></button>`).join('')||empty('No evidence recorded')}</div>${pager('evidence',records.length,7)}</section><section class="panel"><div class="panel-scroll panel-body">${current?`<div class="row-top"><h2>${esc(current.title||current.id)}</h2>${pill(human(current.kind||'Record'))}</div><div class="evidence-metadata"><span>Record ${esc(current.id)}</span><span>From ${esc(personName(current.issuer_id))}</span><span>Design ${esc(current.design_revision||'Not specified')}</span></div><blockquote class="source-text">${esc(readable(current.body||current.text||current.content||'No body recorded.'))}</blockquote>${current.verification_scope?`<p class="fineprint">${esc(current.verification_scope)}</p>`:''}${messages().some(m=>m.id===current.id)?btn('Open original report and attachments','message',current.id,'quiet'):''}<h3 class="section-title">Supporting public references</h3><div class="source-references">${linked.map(sourceLink).join('')||'<p class="muted small">No public reference is directly indexed for this record.</p>'}</div>`:empty('Select an evidence record')}</div></section></div>`;
   }
   function about() {
-    return `${heading('About this workspace','A project management demonstration grounded in deployment workflows.',btn('Back to portfolio','nav','portfolio','quiet'))}<section class="panel fill"><div class="panel-scroll panel-body provenance-content"><h2>Data and provenance</h2><p>The projects, stakeholders, vendors, prices, schedules, qualification records and performance samples in this workspace are fictional demonstration records. Vendor ratings are invented internal examples, not independent public reviews or verified real-world credentials.</p><h3>Actions and responses</h3><p>Availability inquiries and clarification requests are recorded locally. “Load sample replies,” approval-response previews and confirmation controls exercise the workflow without contacting a real vendor, granting a real permission or placing an order.</p><h3>Original reports and AI summaries</h3><p>Uploaded text and images are retained as source records. When ChatGPT is connected, reading summaries are generated from those originals. Summaries and reported observations do not authorize spending, certify engineering work or establish utility acceptance.</p><h3>Decision authority</h3><p><strong>POLICY_DEMO_01</strong> is the explicit delegation used by these projects. The named PM may approve changes within the recorded limit; larger changes require the commercial approver. Bookings, technical verification and institutional permission remain separate.</p><h3>Workflow references</h3><p>Public references inform the workflow categories. Each project’s actual scope, applicability and conditions still require responsible review.</p><div class="source-references">${arr(ui.data.sources).map(sourceLink).join('')}</div></div></section>`;
+    return `${heading('About this workspace','A project management demonstration grounded in deployment workflows.',btn('Back to portfolio','nav','portfolio','quiet'))}<section class="panel fill"><div class="panel-scroll panel-body provenance-content"><h2>Data and provenance</h2><p>The projects, stakeholders, vendors, prices, schedules, qualification records and performance samples in this workspace are fictional demonstration records. Vendor ratings are invented internal examples, not independent public reviews or verified real-world credentials.</p><h3>Contractor portal</h3><p>The role picker provides local preview access, not production identity verification. The <a href="/contractor.html" target="_blank" rel="noopener">contractor portal</a> submits reports into this shared workspace. These are the external delivery partners on each project, not EQORE-owned crews. Reports are recorded as claims for PM review; submitting a report does not authorize a change.</p><h3>Actions and responses</h3><p>Availability inquiries and clarification requests are recorded locally. “Load sample replies,” approval-response previews and confirmation controls exercise the workflow without contacting a real vendor, granting a real permission or placing an order.</p><h3>Original reports and AI summaries</h3><p>Uploaded text and images are retained as source records. When ChatGPT is connected, reading summaries are generated from those originals. Summaries and reported observations do not authorize spending, certify engineering work or establish utility acceptance.</p><h3>Decision authority</h3><p><strong>POLICY_DEMO_01</strong> is the explicit delegation used by these projects. The named PM may approve changes within the recorded limit; larger changes require the commercial approver. Bookings, technical verification and institutional permission remain separate.</p><h3>Workflow references</h3><p>Public references inform the workflow categories. Each project’s actual scope, applicability and conditions still require responsible review.</p><div class="source-references">${arr(ui.data.sources).map(sourceLink).join('')}</div></div></section>`;
   }
   function render(){
     if(!ui.data)return;
     const pages={
-      portfolio,site,decision,inbox,compose,calendar,vendors:directory,'vendor-profile':vendorProfile,budget,timeline,constraint,details,evidence,about
+      portfolio,site,decision,inbox,compose,calendar,vendors:directory,'vendor-profile':vendorProfile,budget,timeline,constraint,details,evidence,about,subcontractors,procurement,readiness
     }
     ;
     app.innerHTML=shell((pages[ui.view]||portfolio)());
@@ -346,22 +447,24 @@
     return data;
   }
   async function refresh(){
-    const data=await api('/api/bootstrap');
+    const selector=project().demo_project_id;
+    const data=await api('/api/bootstrap'+(selector?'?project_id='+encodeURIComponent(selector):''));
     if(!data.state)throw new Error('Project records were not returned.');
     ui.data=data;
+    ui.updates=null;
   }
   async function mutate(path,payload,title,onSuccess){
     if(ui.busy)return;
     ui.busy=true;
     ui.notice=null;
-    const version=ui.data.session_version;
+    const version=path==='/api/projects/select' ? (ui.data.active_session_version ?? ui.data.session_version) : ui.data.session_version;
     render();
     try{
       const data=await api(path,{
         ...payload,expected_version:version
       }
       );
-      if(data.state)ui.data=data;
+      if(data.state){ui.data=data;ui.updates=null;}
       else await refresh();
       ui.notice={
         text:title
@@ -460,6 +563,12 @@
       render();
       return;
     }
+    if(a==='map-region') { ui.mapRegion=id; render(); return; }
+    if(a==='portfolio-filter') { ui.portfolioFilter=id; render(); return; }
+    if(a==='resource-tab') { ui.resourceTab=id; render(); return; }
+    if(a==='subcontractor') { ui.subcontractId=id; render(); return; }
+    if(a==='resource-event') { ui.dialog={type:'resource',id}; render(); return; }
+    if(a==='week') { ui.weekOffset=id==='reset'?0:ui.weekOffset+Number(id); render(); return; }
     if(a==='cluster'){
       ui.cluster=!ui.cluster;
       render();
@@ -575,6 +684,8 @@
       ui.tab='cases';
       ui.caseId=null;
       ui.messageId=null;
+      ui.subcontractId=null;
+      ui.weekOffset=0;
       ui.pages={
       }
       ;
@@ -749,6 +860,9 @@
   }
   );
   document.addEventListener('keydown',event=>{
+    if(['Enter',' '].includes(event.key)&&event.target.matches('g[role=button]')) {
+      event.preventDefault(); event.target.dispatchEvent(new MouseEvent('click',{bubbles:true}));
+    }
     if(event.key==='Escape'&&ui.dialog){
       ui.dialog=null;
       render();
@@ -767,6 +881,8 @@
     }
   }
   );
+  setInterval(checkUpdates,8000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkUpdates();});
   refresh().then(render).catch(error=>{
     app.innerHTML=`<main class="connection-error"><span class="brand-mark">e</span><h1>Could not open the workspace</h1><p>${esc(error.message)}</p><button class="btn primary" onclick="location.reload()">Retry connection</button></main>`;
   }
