@@ -1,57 +1,23 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EQORE Contractor Portal</title>
-  <link rel="stylesheet" href="../command-center/styles.css">
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <header class="top">
-    <div class="brand">
-      <div class="logo">E</div>
-      <div>
-        <h1>Contractor Portal</h1>
-        <p>Everything you owe across EQORE installs &middot; <span class="demo-tag">Demo data, not an EQORE catalog</span></p>
-      </div>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#182a30">
+    <meta name="description" content="EQORE contractor portal. Contractors see their tasks and timelines, mark work done and report problems; the PM approves replacement resources.">
+    <title>EQORE · Contractor portal</title>
+    <!-- Same look as the deployment workspace: Yichang's stylesheet, plus a few portal-only rules. -->
+    <link rel="stylesheet" href="../eqore-demo/web/styles.css">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div id="app">
+      <div class="loading-shell" role="status"><div class="brand-mark">e</div><h1>Opening the contractor portal</h1><p>Loading tasks and project timelines…</p></div>
     </div>
-    <label class="ct-who">
-      <span>Signed in as</span>
-      <select id="party" aria-label="Contractor or agency"></select>
-    </label>
-    <div class="demo-jump">
-      <a class="ct-link" href="../command-center/" target="eqore-pm">PM command center &#8599;</a>
-      <button data-act="reset" class="ghost">Reset demo</button>
-    </div>
-  </header>
-
-  <section class="metrics" id="metrics"></section>
-
-  <main class="ct-main">
-    <section>
-      <div class="ct-head">
-        <h2 id="list-title">Your items</h2>
-        <div class="chips" id="filters">
-          <button class="chip on" data-act="filter" data-f="open">Open</button>
-          <button class="chip" data-act="filter" data-f="blocking">Holding up an install</button>
-          <button class="chip" data-act="filter" data-f="all">All</button>
-        </div>
-      </div>
-      <div id="items" class="ct-items"></div>
-    </section>
-    <aside class="ct-side">
-      <h2>Activity</h2>
-      <p class="ct-muted">Updates from every contractor and the PM. The command center reads the same record.</p>
-      <ol id="log" class="ct-log"></ol>
-    </aside>
-  </main>
-
-  <div class="toast" id="toast" role="status"></div>
-
-  <script src="../command-center/data.js"></script>
-  <script src="../command-center/engine.js"></script>
-  <script src="parties.js"></script>
-  <script src="app.js"></script>
-</body>
+    <noscript>This local prototype needs JavaScript.</noscript>
+    <script src="../command-center/data.js"></script>
+    <script src="db.js"></script>
+    <script src="model.js"></script>
+    <script src="app.js"></script>
+  </body>
 </html>
