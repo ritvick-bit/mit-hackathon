@@ -23,10 +23,14 @@ import project_evaluation
 import challenges
 import phases
 import scenarios
+import operations
+import vendors
+import messages
+import workspace
 from storage import Conflict, Store
 
 ROOT = Path(__file__).resolve().parent
-APP_VERSION = "0.4.0"
+APP_VERSION = "0.5.0"
 CAPABILITIES = [
     ("CAP01", "Portfolio coordination", "Three saved project workspaces with distinct costs, stakeholders and constraints; shared resources are recorded assumptions, not a portfolio optimizer."),
     ("CAP02", "Schedule, procurement & cost", "Delivery evidence, feasible recovery options, scoped approval and atomic plan commitment."),
@@ -68,6 +72,31 @@ class Application:
         if self.store.read() is None or added == len(catalog):
             self.store.write(self.store.projects()[catalog[0]["id"]]["state"], operation="initialize_projects")
         self.store.refresh_pristine_projects([projects.initial_state(p["id"]) for p in catalog])
+        self.store.seed_vendors(vendors.list_vendors())
+        self.store.enrich_projects(self.initialize_workspace)
+
+    def initialize_workspace(self, state):
+        if not state["project"].get("demo_project_id"):
+            return state
+        return messages.seed_demo_image(operations.ensure(state), ROOT / "web" / "field-note.png", self.store.vendors())
+
+    def vendor_context(self, state):
+        """Global saved bookings constrain vendor capacity across demo projects."""
+        profiles = self.store.vendors()
+        by_id = {v["id"]: v for v in profiles}
+        for record in self.store.projects().values():
+            other = record["state"]
+            if other["project"]["id"] == state["project"]["id"]:
+                continue
+            for booking in other.get("operations", {}).get("bookings", []):
+                if booking.get("status") not in {"confirmed", "pending", "requested", "required"}:
+                    continue
+                vendor = by_id.get(booking.get("vendor_id", booking.get("recipient_id")))
+                if vendor:
+                    vendor.setdefault("reservations", []).append({
+                        "start": booking.get("start", booking.get("planned_start")), "end": booking.get("end"),
+                        "project_id": other["project"]["id"], "case_id": booking.get("case_id"), "status": booking["status"]})
+        return profiles
 
     def bootstrap(self):
         record = self.store.read()
@@ -78,7 +107,8 @@ class Application:
         if recommendation is None:
             recommendation = dict(engine.recommend(state), mode="baseline")
         analysis = engine.analyze(state)
-        overview = dashboard.summarize(state, analysis)
+        operation_view = workspace.public(operations.summarize(state, self.vendor_context(state)))
+        overview = workspace.finance(dashboard.summarize(state, analysis), state, operation_view)
         phase_view = phases.summarize(state, analysis)
         knowledge = json.loads((ROOT / "knowledge.json").read_text())
         saved_projects = self.store.projects()
@@ -95,10 +125,15 @@ class Application:
                                          for row in project_phases["phases"]]
             catalog.append(dict(project, metrics=metrics,
                                 current_phase_titles=project_phases["active_phase_titles"], phase_summary=phase_summary,
+                                operation_summary=workspace.operation_summary(operation_view if is_current else
+                                    workspace.public(operations.summarize(saved, self.vendor_context(saved)))),
                                 selected=project["id"] == state["project"].get("demo_project_id")))
         return {"version": APP_VERSION, "state": state, "session_version": record["version"],
                 "analysis": analysis, "dashboard": overview, "projects": catalog,
                 "phases": phase_view, "workflow_review": knowledge.get("workflow_review", {}),
+                "operations": operation_view, "vendors": workspace.public(self.store.vendors()),
+                "workspace": {"calendar": workspace.calendar(state, operation_view),
+                              "timezone": state["project"].get("timezone", "America/New_York")},
                 "mode": "project" if state["project"].get("demo_project_id") else "scenario",
                 "recommendation": recommendation,
                 "scenarios": scenarios.list_scenarios(), "sources": scenarios.sources(),
@@ -118,6 +153,7 @@ class Application:
             if expected != record["version"]:
                 raise Conflict("This screen is out of date. Refresh before applying this action.")
             state, cursor = record["state"], record["cursor"]
+            attachments = []
             if path == "/api/projects/select":
                 self.store.activate_project(payload.get("project_id"), expected=expected)
                 return self.bootstrap()
@@ -125,7 +161,8 @@ class Application:
                 project_id = payload.get("project_id")
                 if project_id not in {p["id"] for p in projects.list_projects()}:
                     raise ValueError("Unknown demo project.")
-                state, cursor = projects.initial_state(project_id), 0
+                state, attachments = self.initialize_workspace(projects.initial_state(project_id))
+                cursor = 0
             elif path == "/api/reset":
                 scenario_id = payload.get("scenario_id", scenarios.list_scenarios()[0]["id"])
                 if scenario_id not in {s["id"] for s in scenarios.list_scenarios()}:
@@ -163,10 +200,67 @@ class Application:
                 # gets this route automatically; its allowed actions are validated in llm.py.
                 actor = payload.get("actor_id", "coordinator") if action["type"] == "resolve_decision" else "coordinator"
                 state = engine.apply_action(state, action, actor_id=actor)
+            elif path in {"/api/operations", "/api/operations/respond"}:
+                operation = payload.get("operation")
+                if not isinstance(operation, dict) or not isinstance(operation.get("type"), str):
+                    raise ValueError("A structured operation is required.")
+                actor = "pm"
+                if path.endswith("/respond"):
+                    actor = payload.get("actor_id")
+                    commercial = actor == "commercial" and operation["type"] in {"simulate_authority_response", "approve_and_commit", "approve_proposal"}
+                    counterpart = actor in {v["id"] for v in self.store.vendors()} and operation["type"] in {"confirm_booking", "receive_vendor_reply"}
+                    if operation["type"] == "confirm_booking":
+                        booking = next((b for b in state.get("operations", {}).get("bookings", [])
+                                        if b["id"] == operation.get("booking_id")), None)
+                        counterpart = bool(booking and actor == booking.get("recipient_id") and
+                                           actor in {s["id"] for s in state["stakeholders"]})
+                    if not (commercial or counterpart):
+                        raise ValueError("The demo responder must be the named commercial approver or vendor counterpart for this operation.")
+                state = operations.apply(state, operation, actor_id=actor, vendor_profiles=self.vendor_context(state))
+            elif path == "/api/messages":
+                state, attachments, message_id = messages.prepare(state, payload, self.vendor_context(state))
             else:
                 raise ValueError("Unknown mutation.")
-            self.store.write(state, cursor, expected=expected, operation=path.removeprefix("/api/"))
+            self.store.write(state, cursor, expected=expected, operation=path.removeprefix("/api/"), attachments=attachments)
         return self.bootstrap()
+
+    def submit_summary(self, payload):
+        if not self.auth["authenticated"]:
+            raise ValueError("Live message analysis requires this machine's ChatGPT/Codex login.")
+        record = self.store.read()
+        if payload.get("expected_version") != record["version"]:
+            raise Conflict("Refresh this message before starting analysis.")
+        identity = payload.get("message_id")
+        message = messages.find(record["state"], identity)
+        attachments = []
+        for meta in message.get("attachments", []):
+            item = self.store.attachment(meta["id"], record["state"]["project"]["id"])
+            if item is None:
+                raise ValueError("An original attachment is missing. Restore it before image analysis.")
+            attachments.append(item)
+        with self.job_lock:
+            if any(j["status"] == "running" for j in self.jobs.values()):
+                raise Conflict("Another model job is running. Wait for it to finish.")
+            job_id = secrets.token_hex(8)
+            self.jobs[job_id] = {"status": "running", "kind": "message-summary", "mode": "live",
+                                 "started_at": datetime.now(timezone.utc).isoformat(), "message_id": identity}
+
+        def work():
+            try:
+                result = llm.summarize_message(record["state"], message, attachments)
+                with self.store.lock:
+                    current = self.store.read()
+                    if current["version"] != record["version"]:
+                        raise Conflict("The project changed during message analysis. Discarded the result; run it again.")
+                    updated = messages.apply_analysis(current["state"], identity, result, self.vendor_context(current["state"]))
+                    self.store.write(updated, current["cursor"], expected=current["version"], operation="message_analysis")
+                with self.job_lock:
+                    self.jobs[job_id].update(status="completed", result=self.bootstrap())
+            except Exception as exc:
+                with self.job_lock:
+                    self.jobs[job_id].update(status="failed", error=str(exc))
+        self.pool.submit(work)
+        return {"job_id": job_id}
 
     def submit(self, kind, payload):
         mode = payload.get("mode", "baseline")
@@ -259,8 +353,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send({"ok": True, "version": APP_VERSION})
             if path == "/api/export":
                 record = self.server.app.store.read()
+                operation_view = workspace.public(operations.summarize(record["state"], self.server.app.vendor_context(record["state"])))
                 return self.send({"state": record["state"], "recommendation": record["recommendation"],
-                                  "dashboard": dashboard.summarize(record["state"]),
+                                  "dashboard": workspace.finance(dashboard.summarize(record["state"]), record["state"], operation_view),
+                                  "operations": operation_view,
+                                  "calendar": workspace.calendar(record["state"], operation_view),
                                   "phases": phases.summarize(record["state"]),
                                   "previous_world_versions": self.server.app.store.archives(record["state"]["project"].get("demo_project_id")),
                                   "reasoning_history": self.server.app.store.reasoning(limit=1000, include_context=True, project_id=record["state"]["project"]["id"]),
@@ -269,8 +366,19 @@ class Handler(BaseHTTPRequestHandler):
                 with self.server.app.job_lock:
                     job = copy.deepcopy(self.server.app.jobs.get(path.rsplit("/", 1)[1]))
                 return self.send(job if job else {"error": "Unknown job."}, 200 if job else 404)
+            if path.startswith("/api/attachments/"):
+                state = self.server.app.store.read()["state"]
+                identity = path.rsplit("/", 1)[1]
+                referenced = any(a.get("id") == identity for m in state.get("operations", {}).get("messages", [])
+                                 for a in m.get("attachments", []))
+                item = self.server.app.store.attachment(identity, state["project"]["id"]) if referenced else None
+                if item is None:
+                    return self.send({"error": "Attachment not found in this project."}, 404)
+                return self.send(item["data"], content_type=item["mime_type"])
             # Exact allowlist: database, fixtures and private oracle are never served.
-            assets = {"/": "index.html", "/index.html": "index.html", "/styles.css": "styles.css", "/app.js": "app.js"}
+            assets = {"/": "index.html", "/index.html": "index.html", "/styles.css": "styles.css", "/pm.css": "pm.css", "/app.js": "app.js",
+                      "/legacy.html": "legacy.html", "/legacy.js": "legacy.js", "/legacy.css": "legacy.css",
+                      "/map.svg": "map.svg", "/field-note.svg": "field-note.svg"}
             if path not in assets:
                 return self.send({"error": "Not found."}, 404)
             file = ROOT / "web" / assets[path]
@@ -283,8 +391,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             self.local_request(mutation=True)
+            path = urlparse(self.path).path
             length = int(self.headers.get("Content-Length", "0"))
-            if length <= 0 or length > 256_000:
+            if length <= 0 or length > (23_000_000 if path == "/api/messages" else 256_000):
                 raise ValueError("Invalid request size.")
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
@@ -292,7 +401,9 @@ class Handler(BaseHTTPRequestHandler):
             path = urlparse(self.path).path
             if path in {"/api/decide", "/api/evaluate"}:
                 result = self.server.app.submit(path.removeprefix("/api/"), payload)
-            elif path in {"/api/reset", "/api/action", "/api/event", "/api/clock", "/api/respond", "/api/projects/select", "/api/projects/reset"}:
+            elif path == "/api/message-summary":
+                result = self.server.app.submit_summary(payload)
+            elif path in {"/api/reset", "/api/action", "/api/event", "/api/clock", "/api/respond", "/api/projects/select", "/api/projects/reset", "/api/messages", "/api/operations", "/api/operations/respond"}:
                 result = self.server.app.mutate(path, payload)
             else:
                 return self.send({"error": "Not found."}, 404)

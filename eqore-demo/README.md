@@ -1,4 +1,4 @@
-# EQORE deployment workspace — v0.4
+# EQORE deployment workspace — v0.5
 
 A local hackathon prototype for battery deployment coordination. It records project facts, identifies blocked work, recommends the next useful action and person to contact, and executes controlled **simulated** operations. The knowledge library is grounded in EQORE's published [deployment PM responsibilities](https://www.eqore.com/careers/project-manager-deployments), with source scope and synthetic assumptions visible.
 
@@ -16,7 +16,7 @@ Open **http://127.0.0.1:8765**. The service binds only to the local machine. Use
 
 A fresh clone creates its own database and seeds all three demo projects. Project progress, saved recommendations and evaluation history are local to each teammate. Committed JSON validation reports are reference files; they are not automatically imported into the new database or shown as saved Evaluation/Challenge lab runs. Run the evaluations from the app to populate your own history. Databases, credentials and newly generated runtime artifacts are excluded from Git.
 
-For live judgment, each teammate needs a compatible `codex` CLI on their `PATH` and must sign in with their own ChatGPT account (`codex login`, then `codex login status`). The app calls that authenticated runtime; it does not use canned model answers or copy credentials. Authentication is checked at server startup, so restart the service after signing in. The first screen deliberately labels its deterministic recommendation **Fixed-rule baseline**. **Rethink with ChatGPT** makes three fresh agent calls and displays **Live LLM judgment** on success. Failed live calls remain errors and never silently become baseline results.
+For live judgment, each teammate needs a compatible `codex` CLI on their `PATH` and must sign in with their own ChatGPT account (`codex login`, then `codex login status`). The app calls that authenticated runtime; it does not use canned model answers or copy credentials. Authentication is checked at server startup, so restart the service after signing in. The PM inbox offers **Summarize with ChatGPT** for original text and image reports, with separate reading summaries and internal extracted observations. On the internal testing page (`/legacy.html`), deterministic recommendations are labelled **Fixed-rule baseline**; **Rethink with ChatGPT** makes three fresh agent calls and displays **Live LLM judgment** on success. Failed live calls remain errors and never silently become baseline results.
 
 Optional configuration:
 
@@ -26,7 +26,9 @@ Optional configuration:
 
 ## Working together
 
-Read the team repository’s `AGENTS.md` and `docs/CHALLENGE.md`, then create a branch before making changes. Run the current 153-test suite from `eqore-demo/` and open a pull request against `main`:
+Claude Code automatically reads `CLAUDE.md` in this module, which imports [INTEGRATION.md](INTEGRATION.md). That guide documents the PM APIs and the project/data mappings needed to connect the separate contractor and command-center modules. The PM page loads `web/pm.css`; `web/styles.css` retains the older shared stylesheet expected by the contractor portal.
+
+Read the team repository’s `AGENTS.md` and `docs/CHALLENGE.md`, then create a branch before making changes. Run the automated regression suite from `eqore-demo/` and open a pull request against `main`:
 
 ```sh
 git switch main
@@ -43,15 +45,14 @@ Coordinate the issue and branch naming with the team’s repository rules, and i
 
 ## Five-minute walkthrough
 
-1. Open **Demo projects** and choose Harbor Components, Millbrook Cold Storage or Riverbend Logistics. They represent different deployment stages, systems, budgets and constraints; switching preserves each project’s progress.
-2. In **Project workspace**, inspect every ranked bottleneck. Current issues, waiting responses and upcoming prerequisites are labelled separately. Expand a row to see who owns it, its evidence and the work it affects. Ranking is an explicit fixed-rule aid; it is not a calculated critical path.
-3. Open **Phases & timeline** to inspect the eight post-signing groups, responsible people, acceptance criteria, blockers and return paths. More than one phase may be active. Planned task dates, recorded work completion and current acceptance are displayed separately.
-4. Open **Budget & resources** for the cost breakdown, dated recorded spending, proposed/committed changes, labor assumptions, resource windows, milestones and site assumptions. Estimated total means known committed cost plus current proposed exposure; actual invoices do not appear merely because a task finishes.
-5. Click **Rethink with ChatGPT**. All three agents receive the observed project, its phases, open corrections, issue queue and costs. Execute the selected action and simulate counterpart replies. In **Plan & decisions**, review approvals, commitment and separate contractor confirmations.
-6. **Advance simulation** introduces a later update when the project reaches its relevant stage. The project already contains observed issues at opening. A returned review or later fault can reopen affected acceptance while retaining earlier physical-work records. Inspect saved reasoning and export records in **Activity history**.
-7. Open **Facts → constraint → next step** below a recommendation for its observed records, rule, consequence, permitted action, uncertainty and reconsideration conditions. In **Plan & decisions**, expand **Required evidence & basis** for each gate’s artifacts and public references.
-8. In **Evaluation lab**, use **Test all demo projects** for three complete development runs. The 14 targeted cases remain a separate suite. **Open test case** is explicit; saved demo projects can be resumed afterward.
-9. In **Challenge lab**, inspect the separately generated ChatGPT challenge set and run its checks. Saved runs are local to your database; committed before/after reports can also be inspected as JSON files. Fresh live product-agent probes are labelled separately from fixed-rule checks. Per-case coverage limits remain visible.
+1. Open the **Portfolio** landing page. The US map clusters the three Massachusetts sites at their actual shared region; the ranked site list opens each saved project.
+2. **Site overview** keeps budget, active phases, today's/this week's checkpoints, incoming reports and priority decisions in a bounded workspace. Open a card for details; **Calendar**, **Inbox**, **Vendors**, budget and phase pages provide focused views. Planned dates, offered slots and confirmed bookings are distinguished.
+3. Open Harbor's rigging decision. The original report explains why the delayed delivery conflicts with unloading. Three suitable vendors have already received **simulated** availability inquiries. Click **Simulate vendor replies**, compare dates, total incremental quotes, scope, qualifications and performance sample sizes, then prepare an exact proposal.
+4. Review the proposed work and before/after dates. Approving a permitted change updates the project plan and committed costs once. Vendor and affected stakeholder bookings still need their own explicit simulated confirmations. Posted expenses and permit/utility authority remain unchanged.
+5. Try Millbrook's EPC/application support case. Its $3,600 leading quote exceeds the synthetic $2,500 PM limit and routes to the commercial approver. Riverbend's electrical correction case preserves engineer review, independent verification, customer IT and operating authorization as separate requirements.
+6. In **Inbox**, open the original Riverbend field report and its clearly labelled illustrative image. Generate a fresh ChatGPT summary. Add a synthetic report with up to four PNG/JPEG/WebP images (4 MiB each); after live triage recognizes a supported vendor request, it opens a linked case and automatically creates suitable simulated inquiries. Unclear scope stays for review.
+7. In **Vendors**, inspect the ten fictional profiles by activity. Qualifications and performance have explicit provenance; offers are case-specific. Unknown prices remain unknown, expired credentials exclude an option, and changed/expired quotes invalidate the old approval.
+8. The internal testing page at **`/legacy.html`** retains the original detailed workspace, three-agent reasoning, evidence controls, phase/source-map review, simulation advancement, activity export, Evaluation lab and Challenge lab. It is outside the main PM navigation. Switching to a targeted test scenario is explicit; saved full projects remain available afterward.
 
 | Demo project | System assumption | Baseline | Opening situation |
 | --- | --- | --- | --- |
@@ -60,6 +61,14 @@ Coordinate the issue and branch naming with the team’s repository rules, and i
 | Riverbend Logistics | 300 kW / 600 kWh | $310,000 | Installed system awaiting field verification, customer IT and operating acceptance |
 
 All three use a 14-task contract-to-handoff lifecycle, with 17 stakeholders, 13 readiness/authority gates and five later stage-dependent updates per project (world version `3.0.0`). Existing completed work is evidenced at opening. Fire review, physical receiving, installer correction, independent field verification, final inspection, closeout documents, customer training and fleet acceptance have distinct owners and prerequisites. Millbrook spans November 2026–February 2027; the later-stage projects retain August contract history. Institutional acknowledgements leave approval pending until a later scoped response. Budgets, invoice snapshots, staffing, equipment sizes and local pathways are invented assumptions. A simulated physical-completion response advances the simulation clock; it does not assert real work occurred.
+
+## PM cases, vendors and original reports
+
+The opening support cases are delivery/rigging recovery at Harbor, pre-submission EPC/interconnection document coordination at Millbrook, and qualified electrical correction/reinspection at Riverbend. Existing saved progress is preserved; obsolete opening issues are skipped when the affected work has already finished. The rationale and applicability of the primary sources are recorded in [PM vendor source grounding](docs/PM_VENDOR_SOURCES.md).
+
+Vendor offers are ranked by hard eligibility first (trade, geography, qualifications, known resource fit, capacity, current scope and quote), then an explicit rule combines observed performance, immediacy and price. Small reputation samples are adjusted rather than equated with a large track record. Ranking is a demo product rule, not an EQORE vendor policy or a live market search. Public directory records exclude the private scripted future replies.
+
+Original messages and image bytes persist separately from their reading summaries. Model-extracted claims remain reported observations, not accepted engineering facts. A validated request may solicit availability; the model cannot grant approval, mark work complete or infer utility authorization. All emails, companies, ratings and responses are fictional, and **no real outreach is sent**.
 
 ## Phases, source map and scoped rework
 
@@ -78,7 +87,9 @@ Harbor now receives a returned permit-amendment package, Millbrook receives util
 | File | Responsibility |
 | --- | --- |
 | `server.py` | Local HTTP API, background reasoning/evaluation jobs and explicit simulator controls |
-| `storage.py` | SQLite snapshots, durable audit history, reports and stale-state conflict protection |
+| `storage.py` | SQLite project snapshots, vendor profiles, immutable image blobs, audit history and stale-state conflict protection |
+| `operations.py`, `vendors.py` | Source-linked support cases, automatic simulated sourcing, scoped quotes, exact approval, cost/schedule commitment and counterpart bookings |
+| `messages.py`, `workspace.py` | Original reports and images, separate live summaries/extractions, validated finance and calendar projections |
 | `engine.py` | Dependencies, calendars, permission checks, scoped correction/retest cycles, proposals, atomic commitment and current project acceptance |
 | `phases.py` | Read-only post-signing phase status, planned/actual distinctions, acceptance dependencies and observed return paths |
 | `reasoning.py` | Checkable causal explanations with exact observed fact references and snapshot digests |
@@ -111,7 +122,9 @@ Development cases cover normal progress, delivery recovery, delay within slack, 
 
 Evaluations check observed actions and final state, including required progress. Always waiting fails a reachable case. Honest blocking passes only when the required external response is unavailable under the scenario and the appropriate contact was requested. Case reports preserve hashes, mode, action traces, checks and live-agent call metadata. These are visible development fixtures; no sealed holdout or real-world effectiveness claim is made. Model output can vary; the default model is not pinned unless `EQORE_MODEL` is set.
 
-**Current v0.4 validation:** 153 automated tests passed in the final regression run. All **14/14 targeted baseline cases**, **3/3 whole-project baseline runs** and **12/12 existing independent executable challenge subsets** pass. Every whole-project run processed all five staged updates and reached current accepted handoff. Reports are `data/baseline-evaluation-v04.json`, `data/project-evaluation-v04.json` and `data/challenge-results-after-v04.json`.
+**Current v0.5 validation:** the final full regression run passed **200 tests**, including 47 new vendor/message tests. Further integration checks cover the three enriched projects from sourcing through accepted handoff, using simulated counterpart evidence. Fresh ChatGPT calls successfully summarized a text-only electrical report and a report with the authored field-note image. The image run preserved the raw source, task state, budget and authority gates; its trace is `data/pm-message-vision-v05.json`. These selected live calls are not a full live-model evaluation of the projects.
+
+**Previous v0.4 validation:** 153 automated tests passed in the final regression run. All **14/14 targeted baseline cases**, **3/3 whole-project baseline runs** and **12/12 existing independent executable challenge subsets** pass. Every whole-project run processed all five staged updates and reached current accepted handoff. Reports are `data/baseline-evaluation-v04.json`, `data/project-evaluation-v04.json` and `data/challenge-results-after-v04.json`.
 
 The challenge rerun uses the existing independently authored set and frozen opening snapshots; it is not a newly generated held-out suite for every phase feature. Seven challenge dimensions remain only partially covered, as the report states. General linked-change accounting, dynamically creating corrective physical-work tasks and targeted cost-explanation quality remain outside those executable checks.
 
@@ -133,6 +146,6 @@ All projects, contacts, costs, delegation limits and counterpart responses are s
 
 The scope begins with a signed agreement and ends at accepted handoff. Sales qualification, pre-signing negotiations and ongoing dispatch/O&M are excluded. Program eligibility/status may be carried in handoff information; actual enrollment, seasonal eligibility decisions, program revenue and savings are not simulated.
 
-The prototype covers the PM workstreams at different depths. Delivery recovery and authority tracking are executable; three independently saved project workspaces support inspection and continued execution. Shared resources remain recorded reservations; the app does not optimize staffing across an interactive portfolio. Checklist learning reviews a scoped authored proposal rather than mining a historical corpus. Physical inspections and tests arrive as simulated qualified-actor evidence. Production integrations, document ingestion, real identity/delegation, richer schedule optimization, fresh holdouts and repeated live evaluations remain future work.
+The prototype covers the PM workstreams at different depths. Delivery recovery and authority tracking are executable; three independently saved project workspaces support inspection and continued execution. Saved vendor reservations constrain availability across projects; the app does not globally optimize portfolio staffing. Checklist learning reviews a scoped authored proposal rather than mining a historical corpus. Physical inspections and tests arrive as simulated qualified-actor evidence. The v0.5 vendor cases add scoped physical-work packages and rebook affected activities; old challenge reports describe their own historical coverage, not these new tests. Original text and bounded image ingestion are implemented, with on-demand ChatGPT reading and structured triage. Production communications/integrations, real identity/delegation, richer schedule optimization, fresh holdouts and repeated live evaluations remain future work.
 
 The detailed planning record remains in `EQORE_PM_GROUNDED_PLAN_v0_2.md`; it is historical planning context, not a claim that all planned production capabilities are finished.

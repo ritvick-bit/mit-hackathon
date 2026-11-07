@@ -6,6 +6,7 @@ The repository includes a small, explicit set of synthetic reference artifacts:
 - `challenge-results-before-v03.json` and `challenge-live-before-v03.json`: preserved failures required by the regression tests.
 - Four `v04` evaluation reports: targeted baseline tests, whole-project baseline runs, existing independent challenge checks, and two selected live phase decisions.
 - `phases-v04.png`: an interface example from an isolated Riverbend retest scenario.
+- `pm-message-vision-v05.json`: one fresh ChatGPT summary/observation trace for the authored synthetic field-note image, with source and state-preservation checks. It is not a full-project live evaluation.
 
 The three frozen challenge artifacts are test fixtures. Preserve their bytes; integrity checks reference their hashes. Their observations and contacts are synthetic. Model provenance records are historical execution evidence, not reusable credentials or fresh model outputs.
 

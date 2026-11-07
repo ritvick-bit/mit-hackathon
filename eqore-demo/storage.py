@@ -41,12 +41,73 @@ class Store:
                     id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL,
                     archived_at TEXT NOT NULL, record TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS vendor_profiles (
+                    id TEXT PRIMARY KEY, payload TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS attachments (
+                    id TEXT PRIMARY KEY, project_id TEXT NOT NULL,
+                    name TEXT NOT NULL, mime_type TEXT NOT NULL,
+                    sha256 TEXT NOT NULL, data BLOB NOT NULL
+                );
             """)
 
     def connect(self):
         db = sqlite3.connect(self.path, timeout=15)
         db.row_factory = sqlite3.Row
         return db
+
+    def seed_vendors(self, profiles):
+        with self.lock, self.connect() as db:
+            for profile in profiles:
+                db.execute("INSERT OR IGNORE INTO vendor_profiles VALUES(?,?)",
+                           (profile["id"], json.dumps(profile)))
+
+    def vendors(self):
+        with self.connect() as db:
+            return [json.loads(row[0]) for row in db.execute("SELECT payload FROM vendor_profiles ORDER BY id")]
+
+    def enrich_projects(self, transform):
+        """Add new observed records at startup without resetting saved progress."""
+        with self.lock, self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            for row in db.execute("SELECT * FROM project_snapshots").fetchall():
+                original = json.loads(row["state"])
+                updated = transform(original)
+                if isinstance(updated, tuple):
+                    updated, attachments = updated
+                    self._write_attachments(db, attachments, updated["project"]["id"])
+                if updated != original:
+                    db.execute("UPDATE project_snapshots SET state=?,recommendation=NULL WHERE project_id=?",
+                               (json.dumps(updated), row["project_id"]))
+            current = db.execute("SELECT * FROM session WHERE id=1").fetchone()
+            if current:
+                original = json.loads(current["state"])
+                updated = transform(original)
+                if isinstance(updated, tuple):
+                    updated, attachments = updated
+                    self._write_attachments(db, attachments, updated["project"]["id"])
+                if updated != original:
+                    version = current["version"] + 1
+                    serialized = json.dumps(updated)
+                    db.execute("UPDATE session SET state=?,version=?,recommendation=NULL WHERE id=1", (serialized, version))
+                    db.execute("INSERT INTO history(at,version,operation,snapshot) VALUES(?,?,?,?)",
+                               (datetime.now(timezone.utc).isoformat(), version, "initialize_pm_workspace", serialized))
+
+    def attachment(self, identity, project_id):
+        with self.connect() as db:
+            row = db.execute("SELECT * FROM attachments WHERE id=? AND project_id=?", (identity, project_id)).fetchone()
+        return dict(row) if row else None
+
+    @staticmethod
+    def _write_attachments(db, attachments, project_id):
+        for item in attachments:
+            if item["project_id"] != project_id:
+                raise ValueError("Attachment belongs to a different project.")
+            prior = db.execute("SELECT sha256 FROM attachments WHERE id=?", (item["id"],)).fetchone()
+            if prior and prior[0] != item["sha256"]:
+                raise ValueError("An original attachment cannot be overwritten.")
+            db.execute("INSERT OR IGNORE INTO attachments VALUES(?,?,?,?,?,?)",
+                       tuple(item[k] for k in ("id", "project_id", "name", "mime_type", "sha256", "data")))
 
     def read(self):
         with self.connect() as db:
@@ -109,13 +170,14 @@ class Store:
             return self.write(record["state"], record["cursor"], record["recommendation"],
                               expected=expected, operation="select_project")
 
-    def write(self, state, cursor=0, recommendation=None, expected=None, operation="update"):
+    def write(self, state, cursor=0, recommendation=None, expected=None, operation="update", attachments=()):
         with self.lock, self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute("SELECT version FROM session WHERE id=1").fetchone()
             current = row[0] if row else 0
             if expected is not None and current != expected:
                 raise Conflict("Project changed while this operation was running. Review the current state and run it again.")
+            self._write_attachments(db, attachments, state["project"]["id"])
             version = current + 1
             payload = json.dumps(state, ensure_ascii=False)
             db.execute("INSERT OR REPLACE INTO session VALUES(1,?,?,?,?)",
