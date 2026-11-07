@@ -29,6 +29,10 @@ Use `localhost`, not `127.0.0.1` (the server redirects you): Google's sign-in se
   - **Subcontractors:** their open items, delays and recent updates.
 - **Subcontractors page:** tasks by contractor, colour-coded against the timeline (done, in progress, at risk, pushed back by someone else's delay, delayed by their own problem). Each contractor has a **Documents** popup (signing history and who has to act next: PM, contractor or customer) and an **Email** button that drafts a message and sends it from the PM's Gmail. The **Contractor database** popup searches all companies by job type, task, name, state and availability. Availability counts the company's EQORE jobs on every project, their crew count, and work booked with other clients.
 
+## Document center hand-off
+
+Subcontractor task chips and each document in a contractor's **Documents** popup link into the document center: a document opens that exact document, and a task chip opens the paperwork for that step. Today they open this app's document page, scrolled to the document and highlighted. When the full document center is ready, set `DOC_CENTER` in `app.js` to a function that builds its URL. It receives a query string with `project` plus either `doc` (the document id) or `step` (the step key). Document ids are stable: `<JOB>:<step>:doc<n>`, for example `JOB-001:interconnection:doc1` (the interconnection agreement).
+
 ## Connect Gmail and Google Calendar (about 5 minutes)
 
 1. In the [Google Cloud console](https://console.cloud.google.com/), create a project (or pick one).

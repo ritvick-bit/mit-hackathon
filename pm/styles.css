@@ -110,7 +110,7 @@ a.side-button{text-decoration:none}
 /* Timeline */
 .tl-scroll{overflow-x:auto;padding:6px 0 4px}
 .ontime{--tl:var(--st-green)}.late{--tl:var(--st-red)}
-.tl{position:relative;min-width:calc(var(--n) * 56px)}
+.tl{position:relative;min-width:calc(var(--n) * 84px)}
 .tl-track,.tl-fill{position:absolute;top:13px;height:4px;border-radius:3px;left:calc(50% / var(--n))}
 .tl-track{right:calc(50% / var(--n));background:#dfe4da}
 .tl-fill{width:calc((100% - 100% / var(--n)) * var(--frac));background:var(--tl)}
@@ -120,7 +120,8 @@ a.side-button{text-decoration:none}
 .tl-step.done .tl-dot{background:var(--tl);box-shadow:0 0 0 1px var(--tl)}
 .tl-step.current .tl-dot{width:22px;height:22px;margin-top:4px;background:var(--surface);border:5px solid var(--tl);box-shadow:0 0 0 4px color-mix(in srgb,var(--tl) 20%,transparent)}
 .tl-step.warn .tl-dot{border-color:var(--st-red)}
-.tl-label{font-size:10px;font-weight:600;color:var(--ink);margin-top:4px}
+.tl-label{font-size:10px;font-weight:600;color:var(--ink);margin-top:4px;max-width:100%;overflow-wrap:anywhere;hyphens:auto}
+.tl-date{max-width:100%}
 .tl-step.future .tl-label{color:var(--muted);font-weight:500}
 .tl-date{font-size:9px;color:var(--muted)}
 .tl-step.done .tl-date{color:var(--ink)}
@@ -240,7 +241,12 @@ i.google,.kind.google{background:#7b5bb8}
 .modal-head h2{font-size:15px}
 .modal-body{padding:18px 20px 22px;overflow-y:auto}
 .compose{display:grid;gap:12px}
-.doc-card{border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin-bottom:8px}
+.doc-card{display:block;border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin-bottom:8px;color:var(--ink)}
+a.doc-card:hover,a.task-chip:hover{border-color:#9fbcae;text-decoration:none}
+.doc-open{display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:10px;color:var(--teal)}
+.doc-open .icon{width:11px;height:11px}
+.data-table tr.focus td{background:#fdf1e8;box-shadow:inset 0 0 0 0 transparent}
+.data-table tr.focus td:first-child{box-shadow:inset 3px 0 var(--accent)}
 .doc-card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px}
 .doc-steps{margin:8px 0 0;padding-left:20px;font-size:11px;line-height:1.7;color:var(--muted)}
 .doc-steps li.done{color:var(--teal)}

@@ -83,7 +83,7 @@
     if (map) { map.remove(); map = null; }
     const { parts, query } = route();
     if (!me || !me.signed_in) return renderLogin(query.get("error"));
-    if (parts[0] === "project" && project(parts[1]) && project(parts[1]).pm_id === me.pm_id) return renderProject(project(parts[1]), parts[2] || "overview");
+    if (parts[0] === "project" && project(parts[1]) && project(parts[1]).pm_id === me.pm_id) return renderProject(project(parts[1]), parts[2] || "overview", query);
     if (parts[0] === "login") { location.hash = "#/portfolio"; return; }
     return renderPortfolio(query);
   }
@@ -219,7 +219,7 @@
 
   // ---------- project pages ----------
   const SECTIONS = [["overview", "Overview", I.grid], ["timeline", "Timeline", I.line], ["calendar", "Calendar", I.cal], ["inbox", "Inbox", I.mail], ["todo", "To do", I.check], ["documents", "Document center", I.doc], ["subcontractors", "Subcontractors", I.people]];
-  function renderProject(p, section) {
+  function renderProject(p, section, query) {
     if (!SECTIONS.some((s) => s[0] === section)) section = "overview";
     const name = SECTIONS.find((s) => s[0] === section)[1];
     const counts = { todo: p.todos.filter((t) => t.kind !== "chase").length, subcontractors: M.subcontractors(S, p).filter((x) => x.delayed.length).length || "" };
@@ -242,7 +242,7 @@
       <div class="project-heading-right"><div class="eyebrow">Forecast go-live</div><div class="date ${p.slip > 0 ? "text-red" : ""}">${fmt(p.go_live_date, { month: "short", day: "numeric", year: "numeric" })}</div><div class="timezone">${p.slip > 0 ? `${p.slip} work days after target (${fmt(p.target_date)})` : "On target"}</div></div></div>`;
     const views = { overview, timeline: timelinePage, calendar: calendarPage, inbox: inboxPage, todo: todoPage, documents: documentsPage, subcontractors: subsPage };
     page.innerHTML = head + `<div id="view"></div>`;
-    views[section](p, document.getElementById("view"));
+    views[section](p, document.getElementById("view"), query || new URLSearchParams());
   }
 
   // Overview: timeline across the top; to-do and subcontractors on the left; calendar, inbox and document center on the right.
@@ -405,12 +405,25 @@
     const who = d.next.label === "PM" ? "you" : d.next.label === "Customer" ? "customer" : company(d.next.id).name;
     return `<span class="badge ${d.next.label === "PM" ? "orange" : "gold"}">Waiting on ${esc(who)}</span>`;
   }
-  function documentsPage(p, el) {
+  // Where a document (or a step's paperwork) opens. Today: this app's document page, scrolled to that document.
+  // When Yichang's document center lands, point DOC_CENTER at it; every link below (subcontractor documents,
+  // task chips, to-dos) goes through these two functions. Document ids are stable: "<JOB>:<step>:doc<n>".
+  const DOC_CENTER = null; // e.g. (q) => `/documents/?${q}`
+  const docQuery = (p, extra) => new URLSearchParams({ project: p.id, ...extra }).toString();
+  const docLink = (p, d) => (DOC_CENTER ? DOC_CENTER(docQuery(p, { doc: d.id })) : `#/project/${p.id}/documents?doc=${encodeURIComponent(d.id)}`);
+  const stepDocsLink = (p, t) => (DOC_CENTER ? DOC_CENTER(docQuery(p, { step: t.key })) : `#/project/${p.id}/documents?step=${encodeURIComponent(t.key)}`);
+
+  function documentsPage(p, el, query) {
+    const focus = query.get("doc"), step = query.get("step");
+    const stepTask = step && p.tasks.find((t) => t.key === step);
+    const rows = p.docs.filter((d) => !stepTask || d.task === stepTask);
     el.innerHTML = `<div class="notice job"><p><strong>Document center</strong>Yichang is building the full document center (files, versions, e-signature). It will plug in here. For now this lists every document on the project and where it stands.</p></div>
-      <section class="panel">${panelHead("Documents", "")}<div class="panel-body">${docSummary(p)}</div>
+      <section class="panel">${panelHead(stepTask ? `Documents for ${esc(stepTask.name)}` : "Documents", stepTask ? `<a href="#/project/${p.id}/documents">Show all documents</a>` : "")}<div class="panel-body">${docSummary(p)}</div>
       <div class="table-wrap"><table class="data-table"><thead><tr><th>Document</th><th>Step</th><th>Department</th><th>Status</th><th>Due</th></tr></thead><tbody>
-      ${p.docs.slice().sort((a, b) => ({ waiting: 0, not_started: 1, complete: 2 })[a.status] - ({ waiting: 0, not_started: 1, complete: 2 })[b.status]).map((d) => `<tr><td><strong>${esc(d.name)}</strong><div class="subline">${d.flow.map((x) => (x.label === "PM" ? "You" : company(x.id).name)).join(" → ")}</div></td><td>${esc(d.task.name)}</td><td>${esc(d.department)}</td><td>${docStatus(d)}</td><td class="nowrap">${d.due != null ? fmtI(d.due) : d.history.length ? "done " + fmtI(d.history[d.history.length - 1].at) : ""}</td></tr>`).join("")}
-      </tbody></table></div></section>`;
+      ${rows.sort((a, b) => ({ waiting: 0, not_started: 1, complete: 2 })[a.status] - ({ waiting: 0, not_started: 1, complete: 2 })[b.status]).map((d) => `<tr id="doc-${esc(d.id.replace(/:/g, "-"))}" class="${d.id === focus ? "focus" : ""}"><td><strong>${esc(d.name)}</strong><div class="subline">${d.flow.map((x) => (x.label === "PM" ? "You" : company(x.id).name)).join(" → ")}</div></td><td>${esc(d.task.name)}</td><td>${esc(d.department)}</td><td>${docStatus(d)}</td><td class="nowrap">${d.due != null ? fmtI(d.due) : d.history.length ? "done " + fmtI(d.history[d.history.length - 1].at) : ""}</td></tr>`).join("")}
+      </tbody></table></div>${stepTask && !rows.length ? `<div class="empty-state compact panel-body"><p>No paperwork for this step.</p></div>` : ""}</section>`;
+    const row = focus && el.querySelector(`#doc-${CSS.escape(focus.replace(/:/g, "-"))}`);
+    if (row) setTimeout(() => row.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
   }
 
   // ---------- subcontractors ----------
@@ -440,7 +453,7 @@
             const c = x.company, signed = x.docs.filter((d) => d.status === "complete").length, waiting = x.docs.filter((d) => d.status === "waiting").length;
             return `<div class="sub-row ${x.delayed.length ? "delayed" : ""}">
               <div class="sub-who"><strong>${esc(c.name)}</strong><small>${esc(D.TRADES[c.trade])} · ${esc(c.contact)}</small>${x.delayed.length ? `<span class="badge red">${I.warn}Delay</span>` : ""}</div>
-              <div class="sub-tasks">${x.tasks.map((t) => `<span class="task-chip ${t.state}" title="${esc(TASK_STATE[t.state][0])}${t.task.issue ? ": " + esc(t.task.issue.text) : ""}"><strong>${esc(t.task.name)}</strong><small>${TASK_STATE[t.state][0]} · ${t.task.done ? "done " + fmtI(t.task.fc.f) : fmtI(t.task.fc.s) + " – " + fmtI(t.task.fc.f)}</small></span>`).join("")}</div>
+              <div class="sub-tasks">${x.tasks.map((t) => `<a class="task-chip ${t.state}" href="${stepDocsLink(p, t.task)}" title="${esc(TASK_STATE[t.state][0])}${t.task.issue ? ": " + esc(t.task.issue.text) : ""}. Open this step's documents."><strong>${esc(t.task.name)}</strong><small>${TASK_STATE[t.state][0]} · ${t.task.done ? "done " + fmtI(t.task.fc.f) : fmtI(t.task.fc.s) + " – " + fmtI(t.task.fc.f)}</small></a>`).join("")}</div>
               <div class="sub-actions"><button class="button secondary small" data-action="docs" data-project="${p.id}" data-company="${c.id}">${I.doc}Documents <span class="muted">${signed} done · ${waiting} open</span></button>
                 <button class="button small" data-action="email" data-project="${p.id}" data-company="${c.id}">${I.mail}Email</button></div>
             </div>`; }).join("")}</div>
@@ -478,7 +491,7 @@
       <div class="field-label section-spacer-sm">Tasks on ${esc(p.name)}</div>
       <ul class="plain-list">${x.tasks.map((t) => `<li><span class="badge ${TASK_STATE[t.state][1]}">${TASK_STATE[t.state][0]}</span> <strong>${esc(t.task.name)}</strong><small>${t.task.done ? "Completed " + fmtI(t.task.fc.f) : fmtI(t.task.fc.s) + " – " + fmtI(t.task.fc.f)}${t.task.issue ? " · " + esc(t.task.issue.text) : ""}</small></li>`).join("")}</ul>
       <div class="field-label section-spacer-sm">Documents (history and who's next)</div>
-      ${x.docs.length ? x.docs.map((d) => `<div class="doc-card"><div class="doc-card-head"><strong>${esc(d.name)}</strong>${docStatus(d)}</div><small class="muted">${esc(d.task.name)} · ${esc(d.department)}</small><ol class="doc-steps">${d.flow.map((_, i) => step(d, i)).join("")}</ol></div>`).join("") : `<p class="tiny muted">No documents with this company on this project.</p>`}
+      ${x.docs.length ? x.docs.map((d) => `<a class="doc-card" href="${docLink(p, d)}"><div class="doc-card-head"><strong>${esc(d.name)}</strong>${docStatus(d)}</div><small class="muted">${esc(d.task.name)} · ${esc(d.department)}</small><ol class="doc-steps">${d.flow.map((_, i) => step(d, i)).join("")}</ol><span class="doc-open">Open in document center ${I.ext}</span></a>`).join("") : `<p class="tiny muted">No documents with this company on this project.</p>`}
       <div class="form-actions section-spacer-sm"><button class="button" data-action="email" data-project="${p.id}" data-company="${c.id}">${I.mail}Email ${esc(/desk|team|manager/i.test(c.contact) ? c.name : c.contact.split(" ")[0])}</button></div>`, true);
   }
 

@@ -184,7 +184,7 @@
     const out = [];
     p.issues.forEach((x) => out.push({ kind: "issue", urgency: 1, due: x.reported, title: `Delay reported: ${x.task.name}`, detail: x.text, party: x.owner_id, task: x.task }));
     p.docs.filter((d) => d.status === "waiting" && d.next.label === "PM").forEach((d) =>
-      out.push({ kind: "doc", urgency: urgencyOf(d.due), due: d.due, title: `${d.step === 0 ? "Fill out" : "Sign"}: ${d.name}`, detail: `${d.task.name}. ${d.department}.`, doc: d, party: null }));
+      out.push({ kind: "doc", urgency: urgencyOf(d.due), due: d.due, title: `${d.step === 0 ? "Fill out" : "Sign"}: ${d.name}`, detail: d.task.name === d.department ? `${d.task.name}.` : `${d.task.name}. ${d.department}.`, doc: d, party: null }));
     p.tasks.filter((t) => !t.done && t.role === "eqore" && t.key !== "controls" && t.fc.s <= 5).forEach((t) =>
       out.push({ kind: "task", urgency: urgencyOf(t.fc.s <= 0 ? t.fc.f : t.fc.s), due: t.fc.s <= 0 ? t.fc.f : t.fc.s, title: t.key === "precon" ? "Run pre-construction scheduling: book crew, crane and the shutdown window" : t.name, detail: t.phase, task: t }));
     p.docs.filter((d) => d.status === "waiting" && d.next.label !== "PM" && d.due <= 3).forEach((d) =>
