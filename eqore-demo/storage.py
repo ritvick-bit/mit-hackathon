@@ -1,5 +1,6 @@
 """Transactional local snapshots. Simulator internals are never stored in the UI state."""
 import json
+import hashlib
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -130,8 +131,43 @@ class Store:
         with self.connect() as db:
             rows = db.execute("SELECT * FROM project_snapshots ORDER BY project_id").fetchall()
         return {row["project_id"]: {"state": json.loads(row["state"]), "cursor": row["cursor"],
+                                   "project_version": self.snapshot_version(json.loads(row["state"]), row["cursor"]),
                                    "recommendation": json.loads(row["recommendation"]) if row["recommendation"] else None}
                 for row in rows}
+
+    @staticmethod
+    def snapshot_version(state, cursor=0):
+        payload = json.dumps({"state": state, "cursor": cursor}, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(payload.encode()).hexdigest()
+
+    def portfolio_revision(self):
+        versions = {key: record["project_version"] for key, record in self.projects().items()}
+        return hashlib.sha256(json.dumps(versions, sort_keys=True).encode()).hexdigest()
+
+    def write_project(self, state, expected_project_version, operation="contractor_update", attachments=()):
+        """Mutate one project atomically without changing another PM's selected project."""
+        project_id = state["project"]["demo_project_id"]
+        with self.lock, self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT * FROM project_snapshots WHERE project_id=?", (project_id,)).fetchone()
+            if not row:
+                raise ValueError("Unknown project.")
+            prior = json.loads(row["state"])
+            if prior["project"]["id"] != state["project"]["id"]:
+                raise ValueError("Project identity cannot be changed.")
+            if expected_project_version != self.snapshot_version(prior, row["cursor"]):
+                raise Conflict("This project changed. Refresh the contractor portal before submitting again.")
+            self._write_attachments(db, attachments, state["project"]["id"])
+            payload = json.dumps(state, ensure_ascii=False)
+            db.execute("UPDATE project_snapshots SET state=?,recommendation=NULL WHERE project_id=?", (payload, project_id))
+            current = db.execute("SELECT * FROM session WHERE id=1").fetchone()
+            version = current["version"] if current else 0
+            if current and json.loads(current["state"])["project"].get("demo_project_id") == project_id:
+                version += 1
+                db.execute("UPDATE session SET state=?,version=?,recommendation=NULL WHERE id=1", (payload, version))
+            db.execute("INSERT INTO history(at,version,operation,snapshot) VALUES(?,?,?,?)",
+                       (datetime.now(timezone.utc).isoformat(), version, operation, payload))
+        return self.snapshot_version(state, row["cursor"])
 
     def refresh_pristine_projects(self, states):
         """Upgrade untouched demo openings; archive their prior worlds and never erase progress."""
@@ -146,6 +182,8 @@ class Store:
                     continue
                 if old["cursor"] or any(old["state"].get(k) for k in ("audit", "events", "requests", "proposals")):
                     continue
+                if self.has_workspace_progress(old["state"]):
+                    continue
                 with self.connect() as db:
                     db.execute("INSERT INTO project_archives(project_id,archived_at,record) VALUES(?,?,?)",
                                (project_id, datetime.now(timezone.utc).isoformat(), json.dumps(old)))
@@ -156,6 +194,18 @@ class Store:
                     current = self.read()
                 refreshed.append(project_id)
         return refreshed
+
+    @staticmethod
+    def has_workspace_progress(state):
+        """Opening fixtures may upgrade; submitted reports and vendor work may not."""
+        if state.get("contractor_reports"):
+            return True
+        ops = state.get("operations", {})
+        seeded_messages = {"message-case-harbor-rigging", "message-case-millbrook-utility",
+                           "message-case-riverbend-electrical", "message-riverbend-illustrative-field-note"}
+        return (any(ops.get(key) for key in ("replies", "proposals", "decisions", "bookings")) or
+                any(m["id"] not in seeded_messages or m.get("summary") for m in ops.get("messages", [])) or
+                any(entry.get("action") != "ingest_message" for entry in ops.get("audit", [])))
 
     def archives(self, project_id):
         with self.connect() as db:
