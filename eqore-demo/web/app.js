@@ -1,374 +1,891 @@
 (() => {
   'use strict';
-
   const app = document.getElementById('app');
-  const ui = { data: null, view: 'workspace', knowledgeTab: 'evidence', highlightedEvidence: null, selectedTask: null, scenarioId: null, busy: false, job: null, notice: null, report: null };
-  const nav = [
-    ['portfolio', 'Demo projects', 'layers'],
-    ['workspace', 'Project workspace', 'grid'],
-    ['phases', 'Phases & timeline', 'branch'],
-    ['finance', 'Budget & resources', 'money'],
-    ['decisions', 'Plan & decisions', 'branch'],
-    ['people', 'People & authority', 'people'],
-    ['knowledge', 'Knowledge library', 'book'],
-    ['coverage', 'PM role coverage', 'layers'],
-    ['evaluation', 'Evaluation lab', 'flask'],
-    ['challenges', 'Challenge lab', 'shield'],
-    ['activity', 'Activity history', 'clock']
-  ];
-  const paths = {
-    grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
-    branch: '<circle cx="6" cy="5" r="2"/><circle cx="18" cy="7" r="2"/><circle cx="6" cy="19" r="2"/><path d="M6 7v10m0-5h6a6 6 0 0 0 6-3"/>',
-    people: '<circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 4v3"/>',
-    person: '<circle cx="12" cy="8" r="3.5"/><path d="M5 21v-3a7 7 0 0 1 14 0v3"/>',
-    book: '<path d="M12 6v15M3 3h4a5 5 0 0 1 5 3 5 5 0 0 1 5-3h4v15h-4a5 5 0 0 0-5 3 5 5 0 0 0-5-3H3z"/>',
-    layers: '<path d="m12 3 10 5-10 5L2 8l10-5Zm-10 9 10 5 10-5M2 16l10 5 10-5"/>',
-    flask: '<path d="M9 3h6m-5 0v7L4 20a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1l-6-10V3M7 16h10"/>',
-    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-    arrow: '<path d="M4 12h15m-6-6 6 6-6 6"/>',
-    chevron: '<path d="m9 6 6 6-6 6"/>',
-    refresh: '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.4 7a8 8 0 0 1 13.2-1L20 9M4 15l1.4 3a8 8 0 0 0 13.2-1"/>',
-    play: '<path d="m8 4 12 8-12 8z"/>',
-    spark: '<path d="m12 3 2.3 6.7L21 12l-6.7 2.3L12 21l-2.3-6.7L3 12l6.7-2.3L12 3Z"/>',
-    check: '<path d="m5 12 4 4L19 6"/>',
-    shield: '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/>',
-    calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/>',
-    alert: '<path d="m12 3 10 18H2L12 3Z"/><path d="M12 9v5m0 3h.01"/>',
-    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/>',
-    link: '<path d="M14 3h7v7m0-7L10 14M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5"/>',
-    money: '<circle cx="12" cy="12" r="9"/><path d="M15 8h-5a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H9m3-10v12"/>',
-    download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
-    battery: '<rect x="2" y="6" width="18" height="12" rx="2"/><path d="M22 10v4M6 9v6m4-6v6m4-6v6"/>',
-    flag: '<path d="M5 21V3m0 1c5-4 9 4 14 0v10c-5 4-9-4-14 0"/>',
-    inbox: '<path d="m5 3-3 12v6h20v-6L19 3H5Zm-3 12h6l2 3h4l2-3h6"/>',
-    send: '<path d="m22 2-7 20-4-9-9-4L22 2ZM11 13 22 2"/>'
-  };
-  const icon = name => `<svg class="icon" aria-hidden="true" viewBox="0 0 24 24">${paths[name] || paths.info}</svg>`;
-  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const list = value => Array.isArray(value) ? value : value && typeof value === 'object' ? Object.values(value) : [];
-  const words = value => String(value ?? '').replace(/_/g, ' ');
-  const display = value => value == null || value === '' ? 'Not recorded' : typeof value === 'object' ? JSON.stringify(value) : String(value);
-  const readable = value => value && typeof value === 'object' && !Array.isArray(value) ? Object.entries(value).map(([key, item]) => `${words(key)}: ${Array.isArray(item) ? item.join(', ') : display(item)}`).join(' · ') : display(value);
-  const lines = value => Array.isArray(value) ? value : value ? [value] : [];
-  const pretty = value => esc(JSON.stringify(value, null, 2));
-  const state = () => ui.data?.state || {};
-  const person = id => list(state().stakeholders).find(p => p.id === id);
-  const personName = id => person(id)?.name || id || 'Not assigned';
-  const taskName = id => list(state().tasks).find(t => t.id === id)?.title || id || 'Task';
-  const evidenceName = id => list(state().evidence).find(e => e.id === id)?.title || id;
-  const analysisId = item => typeof item === 'string' ? item : item.task_id || item.id;
-  function taskStatus(task) {
-    if (task.status === 'completed') return 'completed';
-    if (list(ui.data?.analysis?.blocked_tasks).some(item => analysisId(item) === task.id)) return 'blocked';
-    if (list(state().bookings).some(booking => booking.task_id === task.id && !['confirmed', 'superseded'].includes(booking.status))) return 'awaiting_booking';
-    if (list(ui.data?.analysis?.ready_tasks).some(item => analysisId(item) === task.id)) return 'ready';
-    return task.status;
+  const ui = {
+    data:null, view:'portfolio', caseId:null, messageId:null, vendorId:null, phaseId:null, tab:'change', busy:false, notice:null, job:null, cluster:false, pages:{
+    }
+    , calendarFilter:'upcoming', vendorFilter:'all', vendorQuery:'', dialog:null,
+    portfolioFilter:'all', mapRegion:'MA', resourceTab:'teams', subcontractId:null, weekOffset:0, updates:null
   }
-  const pending = record => !['approved', 'rejected', 'resolved', 'answered', 'completed', 'cancelled', 'confirmed', 'closed', 'superseded', 'corrected'].includes(String(record.status || 'pending').toLowerCase());
-  const busyAttr = () => ui.busy ? ' disabled' : '';
-  const safeHref = value => { try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) ? esc(url.href) : ''; } catch { return ''; } };
-  const money = value => Number.isFinite(Number(value)) && value !== null && value !== '' ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(value)) : 'Not recorded';
-  function date(value, withTime = false) {
-    if (!value) return 'Not recorded';
-    const parsed = new Date(String(value).length === 10 ? `${value}T12:00:00-05:00` : value);
-    if (Number.isNaN(parsed.getTime())) return String(value);
-    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', ...(withTime ? { hour: 'numeric', minute: '2-digit' } : {}), timeZone: 'America/New_York' }).format(parsed);
+  ;
+  const arr = x => Array.isArray(x) ? x : x && typeof x === 'object' ? Object.values(x) : [];
+  const esc = x => String(x ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }
-  function statusColor(value) {
-    const v = String(value || '').toLowerCase();
-    if (/^(completed|complete|approved|confirmed|ready|passed|pass|implemented|operational|active)$/.test(v)) return 'green';
-    if (/failed|rejected|blocked|error/.test(v)) return 'red';
-    if (/pending|waiting|review|partial|rework/.test(v)) return 'gold';
-    return '';
+  [c]));
+  const displayName = x => String(x ?? '').replace(/\s*\((?:fictional|synthetic)\)/gi, '').replace(/\s+demo team\b/gi, ' team').trim();
+  const human = x => String(x ?? '').replace(/_/g, ' ');
+  const state = () => ui.data?.state || {
   }
-  const badge = (label, color = '') => `<span class="badge ${esc(color || statusColor(label))}">${esc(words(label ?? 'Not recorded'))}</span>`;
-  const empty = (title, description, compact = false) => `<div class="empty-state${compact ? ' compact' : ''}">${compact ? '' : icon('inbox')}<h3>${esc(title)}</h3>${description ? `<p>${esc(description)}</p>` : ''}</div>`;
-  function button(label, action, options = {}) {
-    return `<button type="button" class="button ${options.style || ''}" data-action="${esc(action)}"${options.id != null ? ` data-id="${esc(options.id)}"` : ''}${ui.busy || options.disabled ? ' disabled' : ''}>${options.icon ? icon(options.icon) : ''}${esc(label)}</button>`;
+  ;
+  const project = () => state().project || {
   }
-  function evidenceChips(ids) {
-    return lines(ids).map(id => `<button class="evidence-chip" data-action="evidence" data-id="${esc(id)}" title="${esc(evidenceName(id))}">${esc(evidenceName(id))}</button>`).join('');
+  ;
+  const ops = () => ui.data?.operations || {
   }
-  function sidebar() {
-    const s = state(), projects = list(ui.data.projects), projectId = s.project?.demo_project_id;
-    const active = projects.find(x => x.id === projectId);
-    const counts = { workspace: ui.data.dashboard?.metrics?.active_bottlenecks, decisions: list(s.proposals).filter(pending).length, people: list(s.stakeholders).length, knowledge: list(s.evidence).length, evaluation: list(ui.data.evaluations).length };
-    return `<aside class="sidebar"><div class="brand"><div class="brand-mark">e</div><div><div class="brand-word">EQORE</div><div class="brand-subtitle">Deployment intelligence</div></div></div><div class="project-picker"><label class="sidebar-caption" for="project-select">Demo projects</label><select id="project-select" class="side-select"${busyAttr()}>${!projectId ? '<option value="" selected>Test case workspace</option>' : ''}${projects.map(item => `<option value="${esc(item.id)}"${item.id === projectId ? ' selected' : ''}>${esc(item.name || item.id)}</option>`).join('')}</select><p class="side-description">${esc(active ? `Current work: ${lines(active.current_phase_titles).join(' · ') || words(active.phase)}` : 'Open a demo project to resume its saved progress.')}</p></div><div class="sidebar-caption">Operations</div><nav class="navigation" aria-label="Main navigation">${nav.map(([key, label, symbol]) => `<button class="nav-link ${ui.view === key ? 'active' : ''}" data-action="nav" data-id="${key}"${ui.view === key ? ' aria-current="page"' : ''}>${icon(symbol)}<span>${label}</span>${counts[key] ? `<span class="nav-count">${counts[key]}</span>` : ''}</button>`).join('')}</nav><div class="sidebar-simulation"><div class="sidebar-caption">Project simulation</div><p class="side-description">Work through the project. New updates, decisions and replies change its priorities.</p><button class="side-button" data-action="event"${busyAttr()}>${icon('play')}Advance simulation</button><button class="side-button secondary" data-action="reset" aria-label="${projectId ? 'Reset current demo project' : 'Reset current test case'}"${busyAttr()}>${icon('refresh')}<span>${projectId ? 'Reset current project' : 'Reset current test case'}</span></button></div><div class="sidebar-bottom"><div class="sandbox-note"><strong>Synthetic projects · simulated actions</strong>Each project has its own facts, costs and progress. Switching projects preserves your work.</div><div class="version"><span>LOCAL PROTOTYPE</span><span>v0.4</span></div></div></aside>`;
+  ;
+  const resources = () => ui.data?.workspace?.resources || {};
+  const people = () => arr(state().stakeholders);
+  const person = id => people().find(x => x.id === id);
+  const personName = id => displayName(person(id)?.name || id || 'Unassigned');
+  const taskName = id => arr(state().tasks).find(x => x.id === id)?.title || id;
+  const contractorRequests = () => arr(ui.data?.workspace?.contractor_requests).filter(r=>!r.case_id&&!['completed','closed','resolved','rejected'].includes(r.status));
+  const cases = () => arr(ops().cases).slice().sort((a,b) => (Number(b.priority)||0) - (Number(a.priority)||0));
+  const messages = () => arr(ops().messages).slice().reverse().sort((a,b) => String(b.received_at).localeCompare(String(a.received_at)));
+  const vendors = () => arr(ops().vendors || ui.data?.vendors).map(v => ({...v, name: displayName(v.name)}));
+  const selectedCase = () => cases().find(x => x.id === ui.caseId);
+  const closed = x => ['completed','closed','resolved','cancelled'].includes(x.status);
+  const money = x => x !== null && x !== undefined && Number.isFinite(Number(x)) ? new Intl.NumberFormat('en-US',{
+    style:'currency',currency:'USD',maximumFractionDigits:0
   }
-  function topbar() {
-    const runtime = ui.data.runtime || {};
-    return `<header class="topbar"><div class="breadcrumb">Operations ${icon('chevron')} <strong>${esc(nav.find(n => n[0] === ui.view)?.[1] || 'Workspace')}</strong></div><div class="topbar-right"><span class="runtime-indicator"><span class="status-dot ${runtime.available ? 'green' : 'orange'}"></span>${runtime.available ? 'ChatGPT runtime available' : 'Live runtime unavailable'}</span><span>LOCAL DEMO</span><span class="avatar" title="Simulated project manager">PM</span></div></header>`;
+  ).format(Number(x)) : 'Not recorded';
+  const timezone = () => ui.data?.workspace?.timezone || project().timezone || project().time_zone || 'America/New_York';
+  function dt(value,time=false) {
+    if(!value)return 'Not recorded';
+    const d=new Date(String(value).length===10?`${value}T12:00:00-05:00`:value);
+    if(Number.isNaN(d.getTime()))return String(value);
+    return new Intl.DateTimeFormat('en-US',{
+      month:'short',day:'numeric',...(time?{
+        hour:'numeric',minute:'2-digit'
+      }
+      :{
+      }
+      ),timeZone:timezone()
+    }
+    ).format(d);
   }
-  function notices() {
-    let output = '';
-    if (ui.notice) output += `<div class="notice ${ui.notice.type === 'error' ? 'error' : ''}" role="${ui.notice.type === 'error' ? 'alert' : 'status'}">${icon(ui.notice.type === 'error' ? 'alert' : 'check')}<div><strong>${esc(ui.notice.title)}</strong>${ui.notice.message ? `<p>${esc(ui.notice.message)}</p>` : ''}</div><button data-action="dismiss" aria-label="Dismiss notification">×</button></div>`;
-    if (ui.job) output += `<div class="notice job" role="status"><span class="spinner"></span><div><strong>${esc(ui.job.title)}</strong><p>${esc(ui.job.description)} · <span id="job-elapsed">${Math.floor((Date.now() - ui.job.started) / 1000)}s elapsed</span></p></div></div>`;
-    return output;
+  function dayKey(value){
+    if(!value)return '';
+    try{
+      return new Intl.DateTimeFormat('en-CA',{
+        year:'numeric',month:'2-digit',day:'2-digit',timeZone:timezone()
+      }
+      ).format(new Date(value));
+    }
+    catch{
+      return '';
+    }
   }
-  function heading(title, subtitle, eyebrow = 'Deployment workspace', actions = '') {
-    return `<div class="page-heading"><div><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1>${subtitle ? `<p>${esc(subtitle)}</p>` : ''}</div>${actions ? `<div class="heading-actions">${actions}</div>` : ''}</div>`;
+  function readable(x){
+    if(x==null)return 'Not recorded';
+    if(typeof x==='string'||typeof x==='number')return String(x);
+    if(Array.isArray(x))return x.map(readable).join(' · ');
+    return Object.entries(x).map(([k,v])=>`${human(k)}: ${readable(v)}`).join(' · ');
   }
-  function stats() {
-    const s = state(), tasks = list(s.tasks), metrics = ui.data.dashboard?.metrics || {}, finance = ui.data.dashboard?.finance || {};
-    const completed = metrics.completed_tasks ?? tasks.filter(t => t.status === 'completed').length;
-    const blockers = metrics.active_bottlenecks ?? tasks.filter(t => ['blocked', 'awaiting_booking'].includes(taskStatus(t))).length;
-    const budget = finance.baseline_total ?? s.project?.budget?.baseline;
-    return `<div class="stats"><div class="stat"><div class="stat-top">Deployment progress ${icon('layers')}</div><div class="stat-number">${completed}<span> / ${tasks.length} tasks</span></div><div class="progress-track"><div class="progress-fill" style="width:${tasks.length ? completed / tasks.length * 100 : 0}%"></div></div></div><div class="stat"><div class="stat-top">Current bottlenecks ${icon('flag')}</div><div class="stat-number">${blockers}</div><div class="stat-bottom">${metrics.upcoming_prerequisites ?? 0} upcoming prerequisites tracked separately</div></div><div class="stat"><div class="stat-top">Target handoff ${icon('calendar')}</div><div class="stat-number small-value">${esc(date(metrics.target_date || s.project?.target_handoff))}</div><div class="stat-bottom">${metrics.planned_variance_days > 0 ? `${esc(metrics.planned_variance_days)} days planned beyond target` : 'Target date · readiness still required'}</div></div><div class="stat"><div class="stat-top">Estimated project cost ${icon('money')}</div><div class="stat-number small-value">${esc(money(finance.estimated_total ?? budget))}</div><div class="stat-bottom">Budget ${esc(money(budget))}${finance.proposed_change ? ` · pending +${esc(money(finance.proposed_change))}` : ''}</div></div></div>`;
+  const symbols={
+    portfolio:'<path d="M3 5l6-2 6 2 6-2v16l-6 2-6-2-6 2V5Zm6-2v16m6-14v16"/>',site:'<path d="M3 21V9l7-5v5l7-5v8h4v9H3Zm4-4h2m4 0h2m3 0h1"/>',calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 11h18"/>',inbox:'<path d="M3 4h18v16H3V4Zm0 10h5l2 3h4l2-3h5"/>',vendor:'<circle cx="9" cy="7" r="3"/><path d="M3 21v-4a6 6 0 0 1 12 0v4m1-16a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 4v3"/>',arrow:'<path d="M4 12h16m-6-6 6 6-6 6"/>',back:'<path d="M20 12H4m6-6-6 6 6 6"/>',refresh:'<path d="M20 4v6h-6M4 20v-6h6m-5-5a8 8 0 0 1 14-3m0 9a8 8 0 0 1-14 3"/>',spark:'<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/>',chevron:'<path d="m9 5 7 7-7 7"/>',check:'<path d="m4 12 5 5L20 6"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 3"/>',paper:'<path d="M7 3h8l4 4v14H5V3h2Zm8 0v5h4M8 12h8m-8 4h6"/>',settings:'<path d="M4 6h16M4 12h16M4 18h16M8 3v6m8 0v6M9 15v6"/>',plus:'<path d="M12 4v16M4 12h16"/>'
   }
-  function recommendation() {
-    const r = ui.data.recommendation;
-    if (!r) return `<section class="panel next-action"><div class="panel-header"><div class="next-action-label">${icon('spark')}Recommended next action</div></div><div class="panel-body">${empty('No recommendation has been generated', 'Run live reasoning or the fixed-rule baseline on the current records.')}<div class="action-bottom">${button('Generate live recommendation', 'decide-live', { icon: 'spark', disabled: !ui.data.runtime?.available })}${button('Run baseline', 'decide-baseline', { style: 'secondary' })}</div></div></section>`;
-    const recipient = person(r.recipient_id);
-    const isLive = r.mode === 'live';
-    return `<section class="panel next-action"><div class="panel-header"><div class="next-action-label">${icon('spark')}Recommended next action</div>${badge(isLive ? 'Live LLM judgment' : 'Fixed-rule baseline', isLive ? 'live' : 'outline')}</div><div class="panel-body"><h2 class="recommendation-title">${esc(r.title || words(r.action_type) || 'Review the current project')}</h2><div class="action-recipient"><div class="person-icon">${icon(r.recipient_id ? 'person' : 'branch')}</div><div><div class="recipient-name">${esc(r.recipient_id ? personName(r.recipient_id) : 'Project coordinator')}</div><div class="recipient-role">${esc(recipient ? `${recipient.role || ''}${recipient.organization ? ` · ${recipient.organization}` : ''}` : 'Controlled project operation')}</div></div></div><div class="action-reason"><div class="reason-label">The blocker</div><div class="reason-copy">${esc(display(r.blocker))}</div></div><div class="action-reason"><div class="reason-label">Why this step</div><div class="reason-copy causal-summary">${esc(display(r.reasoning?.summary || r.why_now))}</div></div><div class="action-reason"><div class="reason-label">Unlocks</div><div class="reason-copy">${lines(r.unlocks).length ? `<ul class="unlock-list">${lines(r.unlocks).map(v => `<li>${esc(typeof v === 'string' ? taskName(v) : display(v))}</li>`).join('')}</ul>` : 'No downstream effect specified'}</div></div>${r.request ? `<div class="request-copy"><div class="eyebrow">Specific request / action</div>${esc(display(r.request))}</div>` : ''}<div class="action-reason"><div class="reason-label">${icon('shield')}Authority</div><div class="reason-copy">${esc(display(r.authority))}</div></div><div class="action-evidence"><span>SUPPORTING EVIDENCE</span>${lines(r.evidence_ids).length ? evidenceChips(r.evidence_ids) : '<span>No evidence references supplied</span>'}</div><div class="action-bottom">${button(r.action_type === 'wait' || r.action?.type === 'wait' ? 'Record waiting state' : 'Execute proposed action', 'execute', { icon: 'arrow', style: 'orange', disabled: !r.action })}${button('Rethink with ChatGPT', 'decide-live', { icon: 'spark', style: 'secondary', disabled: !ui.data.runtime?.available })}</div><div class="action-disclaimer">External messages and commitments are simulated. Authority and freshness checks apply.</div>${reasoningDetails(r)}<details class="detail-disclosure"><summary>Alternatives, parallel work & decision trace</summary><div class="detail-content"><h4>Alternatives considered</h4>${lines(r.alternatives).length ? `<ul>${lines(r.alternatives).map(t => `<li>${esc(display(t))}</li>`).join('')}</ul>` : '<p>No alternatives supplied.</p>'}<h4>While waiting</h4>${lines(r.while_waiting).length ? `<ul>${lines(r.while_waiting).map(t => `<li>${esc(display(t))}</li>`).join('')}</ul>` : '<p>No parallel work specified.</p>'}${r.confidence ? `<p>Confidence: ${esc(display(r.confidence))}</p>` : ''}${button('Recompute fixed-rule baseline', 'decide-baseline', { style: 'ghost small', icon: 'refresh' })}<h4>Structured action</h4><pre>${pretty(r.action || {})}</pre>${r.agent_trace ? `<h4>Product-agent trace</h4><pre>${pretty(r.agent_trace)}</pre>` : ''}</div></details></div></section>`;
+  ;
+  const icon = n => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${symbols[n]||symbols.paper}</svg>`;
+  const priority = x => Number(x)>=90 ? 'Urgent' : Number(x)>=70 ? 'High' : Number(x)>0 ? 'Medium' : 'No active case';
+  const tone = s => /urgent|high|rejected|blocked|expired|failed/i.test(s) ? 'hot' : /confirmed|completed|approved|accepted|booked/i.test(s) ? 'green' : /pending|waiting|review|offered|clarification|awaiting/i.test(s) ? 'amber' : '';
+  const pill = (s,t) => `<span class="pill ${esc(t||tone(String(s)))}">${esc(human(s||'Not recorded'))}</span>`;
+  const btn = (text,action,id='',type='',disabled=false) => `<button type="button" class="btn ${type}" data-action="${esc(action)}"${id!==''?` data-id="${esc(id)}"`:''}${disabled||ui.busy?' disabled':''}>${esc(text)}</button>`;
+  const link = (text,view) => `<button type="button" class="text-link" data-action="nav" data-id="${view}">${esc(text)} →</button>`;
+  const empty = (title,detail='') => `<div class="empty"><h3>${esc(title)}</h3>${detail?`<p>${esc(detail)}</p>`:''}</div>`;
+  const panelHead = (title,right='') => `<div class="panel-head"><h2>${esc(title)}</h2>${right}</div>`;
+  const crumb = title => `<div class="breadcrumb"><button data-action="nav" data-id="portfolio">Portfolio</button><span>/</span><button data-action="nav" data-id="site">${esc(project().name)}</button>${title?`<span>/</span><span>${esc(title)}</span>`:''}</div>`;
+  function heading(title,subtitle='',actions='',kicker=''){
+    return `<div class="page-head"><div>${kicker?`<div class="eyebrow">${esc(kicker)}</div>`:''}<h1>${esc(title)}</h1>${subtitle?`<p>${esc(subtitle)}</p>`:''}</div><div class="head-actions">${actions}</div></div>`;
   }
-  function reasoningDetails(r) {
-    const basis = r.reasoning;
-    if (!basis) return '';
-    return `<details class="detail-disclosure causal-basis"><summary>Facts → constraint → next step</summary><div class="detail-content"><p class="mode-note">A checkable explanation based on the project records available for this decision.</p><h4>Observed facts</h4><ul class="fact-list">${list(basis.facts).map(f => `<li><strong>${esc(f.label)}</strong><span>${esc(readable(f.value))}</span>${f.evidence_ids?.length ? `<div class="action-evidence">${evidenceChips(f.evidence_ids)}</div>` : ''}</li>`).join('')}</ul><h4>Constraint</h4><p>${esc(basis.constraint?.description || '')}</p><h4>Consequence</h4><p>${esc(basis.consequence)}</p><h4>Permitted next step</h4><p>${esc(basis.authorized_action?.description || '')}</p><h4>What it enables</h4><ul>${lines(basis.expected_unlocks).map(v => `<li>${esc(display(v))}</li>`).join('')}</ul>${basis.uncertainties?.length ? `<h4>Still uncertain</h4><ul>${basis.uncertainties.map(v => `<li>${esc(display(v))}</li>`).join('')}</ul>` : ''}${basis.reconsider_when?.length ? `<h4>Reconsider when</h4><ul>${basis.reconsider_when.map(v => `<li>${esc(display(v))}</li>`).join('')}</ul>` : ''}${r.model_judgment ? `<h4>ChatGPT prioritization</h4><p>${esc(display(r.model_judgment.summary || r.model_judgment))}</p>` : ''}</div></details>`;
+  function pager(key,total,size=5){
+    const pages=Math.max(1,Math.ceil(total/size));
+    ui.pages[key]=Math.min(ui.pages[key]||0,pages-1);
+    return `<div class="pager"><span>${total?`${ui.pages[key]*size+1}–${Math.min(total,(ui.pages[key]+1)*size)} of ${total}`:'0 records'}</span><div>${btn('←','page',`${key}:-1`,'quiet',ui.pages[key]===0)}${btn('→','page',`${key}:1`,'quiet',ui.pages[key]>=pages-1)}</div></div>`;
   }
-  function blockers() {
-    const dashboard = ui.data.dashboard || {}, items = list(dashboard.bottlenecks);
-    return `<section class="panel bottleneck-panel"><div class="panel-header"><div><h2>All bottlenecks, in priority order</h2><p>${dashboard.metrics?.active_bottlenecks ?? items.filter(x => x.status !== 'upcoming').length} current · ${dashboard.metrics?.upcoming_prerequisites ?? items.filter(x => x.status === 'upcoming').length} upcoming · ${items.length} shown</p></div>${icon('flag')}</div><div class="ranking-note"><strong>Fixed-rule priority · every issue is shown</strong><span>${esc(dashboard.ranking_method || 'Priority accounts for readiness, downstream impact, timing, and who can resolve the issue.')}</span></div><div class="bottleneck-list">${items.length ? items.map((b, i) => `<article class="bottleneck-row ${b.status === 'upcoming' ? 'upcoming' : ''}"><div class="rank-marker">${esc(b.rank ?? i + 1)}</div><div class="bottleneck-content"><div class="bottleneck-top"><h3>${esc(b.title)}</h3>${badge(b.priority_label || b.status, b.status === 'upcoming' ? 'outline' : /critical|urgent|high/i.test(b.priority_label || '') ? 'red' : b.status === 'waiting' ? 'gold' : 'orange')}</div><div class="bottleneck-meta"><span>${icon('person')}${esc(personName(b.resolver_id))}</span><span>${esc(words(b.category))}</span><span>${esc(words(b.status))}</span></div><p class="bottleneck-next"><strong>Next:</strong> ${esc(display(b.next_step))}</p><p class="ranking-reason">${esc(display(b.ranking_reason))}</p><details class="bottleneck-details"><summary>Impact, evidence & authority${list(b.blocked_task_ids).length ? ` · ${list(b.blocked_task_ids).length} affected tasks` : ''}</summary><div class="detail-content"><h4>Enables</h4><p>${lines(b.unlocks).length ? esc(lines(b.unlocks).map(v => typeof v === 'string' ? taskName(v) : readable(v)).join(' · ')) : esc(lines(b.blocked_task_ids || b.task_ids).map(taskName).join(' · ') || 'No downstream work recorded.')}</p>${b.authority ? `<h4>Authority</h4><p>${esc(readable(b.authority))}</p>` : ''}<h4>Evidence</h4>${b.evidence_ids?.length ? `<div class="action-evidence">${evidenceChips(b.evidence_ids)}</div>` : '<p>No supporting evidence recorded.</p>'}${b.evidence_status ? `<p class="mode-note">${esc(readable(b.evidence_status))}</p>` : ''}${b.score != null ? `<p class="mode-note">Rule priority score: ${esc(b.score)}. This is a sorting aid, not a probability.</p>` : ''}${b.action ? `<div class="bottleneck-operation">${button('Take this next step', 'bottleneck-action', { id: b.id, style: 'secondary small', icon: 'arrow' })}</div>` : ''}</div></details></div></article>`).join('') : `<div class="panel-body">${empty('No unresolved bottlenecks', 'Continue ready work or advance the simulation to receive new project evidence.', true)}</div>`}</div></section>`;
+  function pageRows(rows,key,size=5){
+    const p=Math.min(ui.pages[key]||0,Math.max(0,Math.ceil(rows.length/size)-1));
+    ui.pages[key]=p;
+    return rows.slice(p*size,(p+1)*size);
   }
-  function requestsPanel(all = false) {
-    const requests = list(state().requests).filter(r => all || pending(r));
-    return `<section class="panel"><div class="panel-header"><div><h2>${all ? 'Interaction records' : 'Awaiting responses'}</h2><p>Bounded, simulated counterpart replies</p></div>${badge(requests.length, 'outline')}</div><div class="panel-body">${requests.length ? requests.map(r => `<div class="request-item"><div class="request-person"><span>${esc(personName(r.recipient_id || r.stakeholder_id))}</span>${badge(r.status || 'pending')}</div><p class="request-text">${esc(display(r.request || r.text || r.message || r.question || r.title || r.kind || r.type))}</p><div class="request-foot"><span>${esc(r.id)}${r.created_at ? ` · ${esc(date(r.created_at, true))}` : ''}</span>${pending(r) && r.status !== 'acknowledged' ? button('Simulate reply', 'respond', { id: r.id, style: 'secondary small', icon: 'send' }) : ''}${r.status === 'acknowledged' ? `<p class="mode-note">Acknowledged; the required outcome is still pending. Follow-up becomes available at ${esc(date(r.due_at,true))}.</p>` : ''}</div></div>`).join('') : empty('No requests outstanding', 'Execute a request to begin a simulated conversation.', true)}${ui.data.simulation?.next_response_at ? `<div class="section-spacer">${button('Advance to response deadline', 'clock', {style:'secondary small',icon:'clock'})}<p class="mode-note">Simulate time passing to ${esc(date(ui.data.simulation.next_response_at,true))}. This does not supply an approval.</p></div>` : ''}</div></section>`;
+  function shell(content){
+    const nav=[['portfolio','Portfolio'],['site','Site overview'],['calendar','Calendar'],['subcontractors','Subcontractors'],['procurement','Procurement'],['readiness','Readiness'],['inbox','Inbox'],['vendor','Vendors']];
+    const current=ui.view==='vendors'||ui.view==='vendor-profile'?'vendor':ui.view;
+    return `<div class="shell"><aside class="rail"><button class="brand" data-action="nav" data-id="portfolio" aria-label="EQORE portfolio"><span class="brand-mark">e</span><strong>EQORE</strong></button><nav aria-label="Workspace navigation">${nav.map(([k,label])=>`<button data-action="nav" data-id="${k==='vendor'?'vendors':k}" aria-label="${label}" title="${label}" class="rail-link ${current===k?'selected':''}" ${current===k?'aria-current="page"':''}>${icon(k==='subcontractors'?'vendor':k==='readiness'?'check':k==='procurement'?'paper':k)}<span>${label}</span></button>`).join('')}</nav><a class="contractor-link" href="/contractor.html" target="_blank" rel="noopener">${icon('arrow')}<span>Contractor portal ↗</span></a></aside><div class="workspace"><header class="topbar"><div class="top-location">${icon('portfolio')}<span>${ui.view==='portfolio'?'Deployment portfolio':esc(project().name||'Workspace')}</span>${ui.view!=='portfolio'?`<span class="muted">· ${esc(String(project().site||project().location||'').split(' · ')[0])}</span>`:''}</div><div class="top-right"><span id="updates-slot" aria-live="polite">${updateIndicator()}</span><button class="about-link" data-action="nav" data-id="about">About</button><span class="runtime"><i class="${ui.data.runtime?.available&&ui.data.runtime?.authenticated?'on':''}"></i>${ui.data.runtime?.available&&ui.data.runtime?.authenticated?'ChatGPT connected':'ChatGPT unavailable'}</span><button class="icon-button" data-action="refresh" aria-label="Refresh current records" ${ui.busy?'disabled':''}>${icon('refresh')}</button><div class="avatar" title="Deployment PM">PM</div></div></header><main id="main" class="main ${ui.view==='site'?'site-main':''}">${notices()}${content}</main><footer class="footer"><span>Deployment workspace</span><span>Project clock: ${esc(dt(project().now,true))} · ${esc(timezone())}</span></footer></div></div>${ui.dialog?dialog():''}`;
   }
-  function graphLevels(tasks) {
-    const ids = new Set(tasks.map(t => t.id));
-    const memo = new Map();
-    const visit = (task, trail = new Set()) => {
-      if (memo.has(task.id)) return memo.get(task.id);
-      if (trail.has(task.id)) return 0;
-      const next = new Set(trail); next.add(task.id);
-      const parents = list(task.predecessors).filter(id => ids.has(id));
-      const level = parents.length ? Math.max(...parents.map(id => visit(tasks.find(t => t.id === id), next))) + 1 : 0;
-      memo.set(task.id, level); return level;
+  function updateIndicator() {
+    return ui.updates?`<button class="updates-button" data-action="refresh" title="Refresh current project without changing your selection">New project updates · Refresh</button>`:'';
+  }
+  async function checkUpdates() {
+    if(!ui.data||ui.busy||document.hidden)return;
+    const selector=project().demo_project_id;
+    if(!selector)return;
+    try {
+      const update=await api('/api/updates?project_id='+encodeURIComponent(selector));
+      if(selector!==project().demo_project_id)return;
+      const revision=ui.data.workspace?.portfolio_revision;
+      if(revision!=null&&update.portfolio_revision!==revision) {
+        ui.updates=update;
+        const slot=document.getElementById('updates-slot');
+        if(slot)slot.innerHTML=updateIndicator();
+      }
+    } catch { /* Background connectivity checks must not interrupt an active form. */ }
+  }
+  function notices(){
+    return `${ui.data?.session_version===-1?`<div class="notice"><span>Another PM selected a different site. Reopen this site to make changes.</span>${btn('Reopen this site','project',project().demo_project_id,'quiet small-button')}</div>`:''}${ui.notice?`<div class="notice ${ui.notice.error?'error':''}" role="${ui.notice.error?'alert':'status'}"><span>${esc(ui.notice.text)}</span><button data-action="dismiss" aria-label="Dismiss notice">×</button></div>`:''}${ui.job?`<div class="notice" role="status"><span class="spinner"></span><span>${esc(ui.job)} · fresh ChatGPT inference</span></div>`:''}`;
+  }
+  function projectSummary(p){
+    const x=p.operation_summary||{
+    }
+    ;
+    const ranked=arr(x.cases).filter(c=>!closed(c)).sort((a,b)=>(b.priority||0)-(a.priority||0));
+    return {
+      count:x.open_count??ranked.length,priority:x.top_priority??ranked[0]?.priority??0,title:x.top_title||ranked[0]?.title||p.current_phase_titles?.join(' · ')||p.phase,why:ranked[0]?.why||'',pending:x.pending_inquiry_count||0
+    }
+    ;
+  }
+  function readinessLabel(r) {
+    if(!r || r.total_count == null)return 'Readiness not assessed';
+    return `${r.accepted_count ?? 0}/${r.total_count} checks accepted`;
+  }
+  function projectGeography(p) {
+    return p.geography || p.resource_summary?.geography || p.resources?.geography || {};
+  }
+  function projectReadiness(p) {
+    return p.readiness || p.resource_summary?.readiness || p.resources?.readiness;
+  }
+  function mapPoint(geo) {
+    if(geo.lat==null||geo.lng==null||!Number.isFinite(Number(geo.lat))||!Number.isFinite(Number(geo.lng)))return null;
+    // Albers equal-area projection aligned to the bundled US outline. Locations
+    // are city-level reference coordinates, not surveyed project boundaries.
+    const raw = (lat,lng) => {
+      const rad = Math.PI / 180;
+      const n = (Math.sin(29.5*rad)+Math.sin(45.5*rad))/2;
+      const c = Math.cos(29.5*rad)**2 + 2*n*Math.sin(29.5*rad);
+      const rho = Math.sqrt(c-2*n*Math.sin(lat*rad))/n;
+      const theta = n*(lng+96)*rad;
+      return [rho*Math.sin(theta),rho*Math.cos(theta)];
     };
-    tasks.forEach(t => visit(t));
-    const groups = [];
-    tasks.forEach(t => { const level = memo.get(t.id); (groups[level] ||= []).push(t); });
-    return groups.filter(Boolean);
+    const a=raw(42.746,-73.264),b=raw(42.05,-73.508),v=raw(Number(geo.lat),Number(geo.lng));
+    const scale=((b[0]-a[0])*(-.3)+(b[1]-a[1])*8.5)/((b[0]-a[0])**2+(b[1]-a[1])**2);
+    return [530+(v[0]-a[0])*scale,92.4+(v[1]-a[1])*scale];
   }
-  function dependencyMap() {
-    const tasks = list(state().tasks);
-    const selected = tasks.find(t => t.id === ui.selectedTask);
-    return `<section class="panel section-spacer"><div class="panel-header"><div><h2>Deployment dependencies</h2><p>Readiness reflects current dependencies. Click a task to inspect its supporting records.</p></div><div class="flow-toolbar"><span class="legend-dot"><span class="status-dot green"></span>Complete</span><span class="legend-dot"><span class="status-dot orange"></span>Blocked</span></div></div><div class="flow-scroller"><div class="dependency-flow" id="dependency-flow"><svg class="flow-edges" id="flow-edges" aria-hidden="true"><defs><marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="#b3c2b6"/></marker></defs></svg>${graphLevels(tasks).map(group => `<div class="flow-column">${group.map(t => `<button class="task-node ${esc(taskStatus(t))} ${selected?.id === t.id ? 'selected' : ''}" data-action="task" data-id="${esc(t.id)}" aria-label="${esc(t.title)}, ${esc(words(taskStatus(t)))}"><div class="node-phase">${esc(words(t.phase || 'Deployment'))}</div><div class="node-title">${esc(t.title)}</div><div class="node-bottom"><span class="node-status">${esc(words(taskStatus(t)))}</span><span>${t.planned_start ? esc(date(t.planned_start)) : 'Unscheduled'}</span></div></button>`).join('')}</div>`).join('')}</div></div>${selected ? `<div class="task-detail"><div><div class="eyebrow">${esc(selected.id)} · ${esc(words(selected.phase))}</div><h3>${esc(selected.title)}</h3><p>${esc(selected.description || 'No description recorded.')}</p></div><div><div class="eyebrow">Owner & prerequisites</div><p>${esc(personName(selected.owner_id))}</p><p>${lines(selected.predecessors).length ? esc(lines(selected.predecessors).map(taskName).join(' · ')) : 'No predecessor tasks'}</p>${selected.required_gates ? `<p>Required gates: ${esc(lines(selected.required_gates).join(', '))}</p>` : ''}</div><div><div class="eyebrow">Current evidence</div><div class="action-evidence">${lines(selected.evidence_ids).length ? evidenceChips(selected.evidence_ids) : '<span>No linked evidence recorded.</span>'}</div><p>${selected.planned_start ? esc(date(selected.planned_start, true)) : 'Not scheduled'}${selected.duration_hours ? ` · ${esc(selected.duration_hours)}h` : ''}</p></div></div>` : ''}</section>`;
+  function regionalMap(projects) {
+    const regional=ui.mapRegion==='MA';
+    const positioned=projects.map(p=>({p,geo:projectGeography(p),point:mapPoint(projectGeography(p))})).filter(x=>x.point);
+    return `<div class="regional-map"><svg class="portfolio-map" viewBox="${regional?'518 73 62 43':'0 0 600 340'}" aria-label="${regional?'Massachusetts':'United States'} project locations"><image href="/map.svg" x="0" y="0" width="600" height="340"/>${regional?'<text class="map-area-label" x="522" y="80">MASSACHUSETTS</text><text class="map-water-label" x="565" y="109">ATLANTIC</text>':''}${positioned.map(({p,geo,point},i)=>{
+      const sum=projectSummary(p),color=sum.priority>=90?'urgent':sum.priority>=70?'attention':'tracking';
+      return `<g class="site-marker ${color}" role="button" tabindex="0" data-action="project" data-id="${esc(p.id)}" aria-label="Open ${esc(p.name)}, ${esc(priority(sum.priority))}"><title>${esc(p.name)} · ${esc(geo.city||p.site)} · ${esc(sum.title)}</title><circle class="marker-halo" cx="${point[0]}" cy="${point[1]}" r="${regional?1.5:4.5}"/><circle class="marker-core" cx="${point[0]}" cy="${point[1]}" r="${regional?.75:2.3}"/>${regional?`<text class="marker-label" text-anchor="${geo.city==='Lowell'?'end':'start'}" x="${point[0]+(geo.city==='Lowell'?-1.8:1.8)}" y="${point[1]-.9}">${esc(geo.city||p.name)}</text><text class="marker-index" x="${point[0]}" y="${point[1]+.28}">${i+1}</text>`:''}</g>`;
+    }).join('')}</svg>${!positioned.length?'<div class="map-unavailable">Project coordinates have not been recorded. Choose a site from the list.</div>':''}</div><div class="map-caption"><span><i class="priority-dot hot"></i> Urgent <i class="priority-dot amber"></i> High <i class="priority-dot green"></i> Other</span><span>City-level locations · click a dot to open its project</span></div>`;
   }
-  function workspace() {
-    const p = state().project || {}, system = p.system || {};
-    return `<div class="page-heading"><div><div class="eyebrow">${p.demo_project_id ? 'Whole-project deployment workspace' : 'Evaluation test case workspace'}</div><h1>${esc(p.name || 'Deployment workspace')}</h1><p>${esc([p.customer, typeof p.site === 'string' ? p.site : p.site?.name || p.location, p.utility].filter(Boolean).join(' · '))}</p><div class="project-tags">${badge(phaseData().all_accepted ? 'All phases accepted' : `${lines(phaseData().active_phase_titles).length} active phases`, 'outline')}${system.power_kw ? badge(`${system.power_kw} kW / ${system.capacity_kwh} kWh`, 'outline') : ''}${badge('Synthetic project', 'outline')}${badge(`Design ${p.design_revision || 'not recorded'} · Revision ${p.revision ?? '—'}`, 'outline')}</div></div><div class="project-heading-right"><div class="eyebrow">Project simulation clock</div><div class="date">${esc(date(p.now, true))}</div><div class="timezone">America/New_York · simulated time</div></div></div>${stats()}${phaseStrip()}<div class="workspace-grid priority-workspace">${blockers()}<div class="decision-stack">${recommendation()}${requestsPanel()}</div></div>${milestonesPanel()}${dependencyMap()}<div class="workspace-bottom-links">${button('See project costs, labor & assumptions', 'nav', { id: 'finance', style: 'secondary', icon: 'money' })}${button('Compare demo projects', 'nav', { id: 'portfolio', style: 'ghost', icon: 'layers' })}</div>`;
+  function portfolio(){
+    const all=arr(ui.data.projects).slice().sort((a,b)=>projectSummary(b).priority-projectSummary(a).priority);
+    const matches=p=>ui.portfolioFilter==='all'||(ui.portfolioFilter==='urgent'?projectSummary(p).priority>=90:ui.portfolioFilter==='high'?projectSummary(p).priority>=70&&projectSummary(p).priority<90:projectSummary(p).priority<70);
+    const projects=all.filter(matches);
+    const count=all.reduce((n,p)=>n+projectSummary(p).count,0);
+    const waiting=all.filter(p=>(projectReadiness(p)?.waiting_count||0)>0).length;
+    const filters=[['all','All sites'],['urgent','Urgent'],['high','High priority'],['other','Other']];
+    return `${heading('Where do you need to intervene?','Priority, readiness and the next decision across your active projects.',pill(`${all.length} active sites`),'DEPLOYMENT PORTFOLIO')}<div class="portfolio-metrics"><div><strong>${all.length}</strong><span>sites in delivery</span></div><div><strong>${count}</strong><span>open decision cases</span></div><div><strong>${all.reduce((n,p)=>n+projectSummary(p).pending,0)}</strong><span>vendor replies pending</span></div><div><strong>${waiting}</strong><span>sites with open readiness checks</span></div></div><div class="portfolio-grid fill"><section class="panel map-panel">${panelHead(ui.mapRegion==='MA'?'Massachusetts sites':'United States',`<div class="segmented">${[['US','US overview'],['MA','Regional detail']].map(([id,label])=>`<button data-action="map-region" data-id="${id}" class="${ui.mapRegion===id?'active':''}">${label}</button>`).join('')}</div>`)}${regionalMap(projects)}</section><section class="panel priority-sites">${panelHead('Sites by priority',pill(`${projects.length} shown`))}<div class="portfolio-filters segmented">${filters.map(([id,label])=>`<button data-action="portfolio-filter" data-id="${id}" class="${ui.portfolioFilter===id?'active':''}">${label}</button>`).join('')}</div><div class="panel-scroll">${projects.map((p,i)=>{
+      const sum=projectSummary(p),r=projectReadiness(p);
+      return `<button class="project-row" data-action="project" data-id="${esc(p.id)}"><div class="row-top"><span class="project-index">${String(i+1).padStart(2,'0')}</span>${pill(priority(sum.priority))}</div><h2>${esc(p.name)}</h2><p class="muted small">${esc(String(p.site).split(' · ')[0])} · ${p.system?.power_kw??'—'} kW</p><p class="project-reason">${esc(sum.title)}</p><div class="project-readiness"><span>${esc(readinessLabel(r))}</span>${r?.total_count?`<span class="readiness-meter"><i style="width:${Math.max(0,Math.min(100,100*(r.accepted_count||0)/r.total_count))}%"></i></span>`:''}</div><div class="row-meta"><span>${sum.count} open cases · ${p.metrics?.active_bottlenecks??0} blockers</span><span class="open-site">Open site ${icon('arrow')}</span></div></button>`;
+    }).join('')||empty('No sites match this priority','Choose another priority to see the current portfolio.')}</div></section></div>`;
   }
-  function portfolio() {
-    const projects = list(ui.data.projects), selected = state().project?.demo_project_id;
-    return `${heading('Three projects. Different deployment realities.', 'Choose a complete project to inspect its bottlenecks, costs, people and delivery plan. Each project keeps its own progress as you switch.', 'Demo project portfolio')}<div class="intro-note">${icon('layers')}<span>These are synthetic project worlds grounded in the deployment workflow. Initial blockers are already present; advancing simulation introduces later updates as the project progresses.</span></div><div class="project-cards">${projects.map((p, index) => { const m = p.metrics || {}, f = p.finance || {}, selectedProject = p.id === selected; return `<article class="project-card ${selectedProject ? 'selected' : ''}"><div class="project-card-head"><div class="project-number">PROJECT ${String(index + 1).padStart(2, '0')}</div>${selectedProject ? badge('Current workspace', 'green') : badge(lines(p.current_phase_titles).length ? `${p.current_phase_titles.length} active phases` : (p.phase_summary?.all_accepted ? 'Accepted handoff' : 'Deployment'), 'outline')}</div><h2>${esc(p.name)}</h2><p class="project-site">${esc(typeof p.site === 'string' ? p.site : readable(p.site))}</p><p class="project-description">${esc(p.description)}</p><div class="project-specs"><span>${icon('battery')}${esc(p.system?.power_kw ?? '—')} kW / ${esc(p.system?.capacity_kwh ?? '—')} kWh</span><span>${icon('calendar')}Target ${esc(date(p.target_handoff))}</span></div><div class="project-card-metrics"><div><span>Baseline budget</span><strong>${esc(money(p.budget_baseline ?? f.baseline_total))}</strong></div><div><span>Current bottlenecks</span><strong>${esc(m.active_bottlenecks ?? p.active_bottlenecks ?? '—')}</strong></div><div><span>Tasks complete</span><strong>${esc(m.completed_tasks ?? p.completed_tasks ?? '—')}<small> / ${esc(m.total_tasks ?? p.total_tasks ?? '—')}</small></strong></div></div>${button(selectedProject ? 'Return to project' : 'Open project', 'select-project', { id: p.id, icon: 'arrow', style: selectedProject ? 'secondary' : '' })}<p class="project-saved-note">${selectedProject ? 'Currently selected' : 'Resumes saved progress'} · reset available in project controls</p></article>`; }).join('')}</div>`;
+  function finance(){
+    return ui.data.dashboard?.finance||{
+    }
+    ;
   }
-  function phaseData() { return ui.data.phases || { phases: [], active_phase_titles: [], rework_routes: [] }; }
-  function phaseDate(value, withTime = false) {
-    if (!value) return 'Not recorded';
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? String(value) : new Intl.DateTimeFormat('en-US', {year:'numeric',month:'short',day:'numeric',...(withTime ? {hour:'numeric',minute:'2-digit'} : {}),timeZone:'America/New_York'}).format(parsed);
+  function budgetTiles(){
+    const f=finance();
+    return `<div class="budget-tiles">${[['Budget',f.baseline_total,'Signed baseline'],['Committed',f.committed_total,'Authorized exposure'],['Actual expense',f.actual_total,`Posted as of ${dt(f.actual_as_of)}`],['Pending changes',f.proposed_change,'Awaiting a decision']].map(([label,value,note])=>`<button data-action="nav" data-id="budget" class="budget-tile"><span>${label}</span><strong>${esc(money(value))}</strong><small>${esc(note)}</small></button>`).join('')}</div>`;
   }
-  function phaseLabel(id) { return list(phaseData().phases).find(p => p.id === id)?.title || words(id); }
-  function sourceLinks(ids) {
-    return lines(ids).map(id => { const s = list(ui.data.sources).find(x => x.id === id), href = safeHref(s?.url); return href ? `<a class="document-source" href="${href}" target="_blank" rel="noopener noreferrer">${esc(s.title)} ${icon('link')}</a>` : ''; }).join('');
+  function phasesRibbon(){
+    return `<div class="phase-ribbon" aria-label="Post-signing project phases">${arr(ui.data.phases?.phases).map((p,i)=>`<button data-action="phase" data-id="${esc(p.id)}" class="phase-step ${esc(p.status)}" title="${esc(p.title)}: ${esc(p.status_reason)}"><span>${p.status==='completed'?'✓':String(i+1).padStart(2,'0')}</span><strong>${esc(p.title.replace(' · entry','').replace(' & ',' / '))}</strong><small>${esc(human(p.status))}</small></button>`).join('')}</div>`;
   }
-  function phaseStrip() {
-    const p = phaseData(), rows = list(p.phases);
-    if (!rows.length) return '';
-    return `<section class="panel phase-overview"><div class="panel-header"><div><h2>Post-signing progress</h2><p>${rows.filter(x => x.acceptance_current).length} of ${rows.length} phases accepted · independent work can overlap</p></div>${button('Open phases & timeline', 'nav', {id:'phases',style:'ghost small',icon:'arrow'})}</div><div class="phase-ribbon">${rows.map((r,i) => `<button class="phase-chip ${esc(r.status)}" data-action="phase" data-id="${esc(r.id)}"><span>${i+1}</span><strong>${esc(r.title)}</strong><small>${esc(words(r.status))}</small></button>`).join('')}</div></section>`;
+  function caseRow(c,i,compact=false){
+    if(c.contractor_request)return `<button class="case-row ${compact?'compact':''}" data-action="message" data-id="${esc(c.message_id)}"><span class="rank">${i+1}</span><div class="case-copy"><div class="row-top"><h3>${esc(c.title||c.task_title||'Contractor request')}</h3>${pill(priority(c.priority))}</div><p class="clamp2">${esc(c.message?.text||c.message?.raw_text||c.review_reason||'A contractor submitted a request that needs scope and impact review.')}</p><div class="row-meta"><span class="contractor-report-type">${esc(human(c.type||'Contractor report'))}</span><span>${esc(displayName(c.actor_name||personName(c.actor_id)))}</span><span>Review original →</span></div></div></button>`;
+    const p=c.current_proposal;
+    return `<button class="case-row ${compact?'compact':''}" data-action="case" data-id="${esc(c.id)}"><span class="rank">${i+1}</span><div class="case-copy"><div class="row-top"><h3>${esc(c.title)}</h3>${pill(priority(c.priority))}</div><p class="clamp2">${esc(c.why||c.request)}</p><div class="row-meta"><span>${esc(human(c.status))}</span><span>${p?money(p.cost_delta):arr(c.options).filter(x=>x.status==='available'||x.quote_id).length+' vendor offers'}</span><span class="action-text">Review decision →</span></div></div></button>`;
   }
-  function workflowReview() {
-    const r = ui.data.workflow_review;
-    if (!r) return '';
-    return `<section class="panel section-spacer"><details class="detail-disclosure"><summary>Source map review & application coverage</summary><div class="phase-review"><p>${esc(r.finding)}</p><h3>Corrections applied</h3><ul>${list(r.corrections).map(c => `<li>${esc(c.text)} <small>${esc(words(c.evidence_type))}</small></li>`).join('')}</ul><h3>Timing assumptions</h3><ul>${list(r.timing_notes).map(t => `<li>${esc(t)}</li>`).join('')}</ul>${list(r.map_coverage).length ? `<h3>How the map is represented</h3><div class="table-scroll"><table class="data-table"><thead><tr><th>Source step</th><th>Application record</th><th>Scope</th></tr></thead><tbody>${list(r.map_coverage).map(c => `<tr><td>${esc(c.source_node_id)} · ${esc(c.title)}</td><td>${esc(lines(c.application_refs).join(', '))}</td><td>${esc(c.note || c.coverage)}</td></tr>`).join('')}</tbody></table></div>` : ''}<div class="phase-sources">${sourceLinks(r.source_ids)}</div></div></details></section>`;
+  function engineRow(b,i){
+    return `<button class="case-row compact" data-action="constraint" data-id="${esc(b.id)}"><span class="rank subdued">${i+1}</span><div class="case-copy"><div class="row-top"><h3>${esc(b.title)}</h3>${pill(b.priority_label)}</div><p class="clamp2">${esc(b.detail||b.next_step)}</p><div class="row-meta"><span>${esc(personName(b.resolver_id))}</span><span>Review next action →</span></div></div></button>`;
   }
-  function phases() {
-    const data = phaseData(), rows = list(data.phases);
-    const selected = rows.find(p => p.id === ui.selectedPhase) || rows.find(p => p.status === 'rework') || rows.find(p => p.status === 'current') || rows[0];
-    if (!selected) return heading('Phases & timeline', 'No phase records are available for this project.');
-    const routeCards = [...list(data.rework_routes)].sort((a,b) => Number(['resolved','superseded'].includes(a.status)) - Number(['resolved','superseded'].includes(b.status))).map(r => `<article class="rework-card"><div class="document-head"><h3>${esc(r.trigger || r.reason || 'Acceptance requires another review')}</h3>${badge(r.status)}</div><div class="return-flow"><span>Observed finding</span>${icon('arrow')}<span>${esc(phaseLabel(r.return_phase))}<small>${esc(personName(r.correction_owner_id))}</small></span>${icon('arrow')}<span>Fresh evidence & review<small>${esc(lines(r.gate_ids).map(id => state().gates?.[id]?.label || id).join(' · '))}</small></span>${icon('arrow')}<span>Affected work resumes</span></div><p>${esc(r.reason || '')}</p><p><strong>Required evidence:</strong> ${esc(r.required_artifact || 'Current scoped acceptance record')}</p><p><strong>Affected work:</strong> ${esc(lines(r.task_ids).map(taskName).join(' · ') || 'Only the identified acceptance')}</p><p class="muted">Completed physical work and earlier evidence remain in history. ${esc(r.note || '')}</p><div class="action-evidence">${evidenceChips(r.evidence_ids || r.trigger_evidence_ids || [])}</div></article>`).join('');
-    const records = list(selected.milestones?.recorded_completions);
-    return `${heading('From signed scope to accepted handoff', 'See which work can advance, what is waiting, and where a correction returns. Phase status is derived from current project evidence.', 'Phases & timeline')}<div class="intro-note">${icon('branch')}<span>${esc(data.scope)} ${esc(data.status_note)}</span></div><div class="phase-grid">${rows.map((r,i) => `<button class="phase-card ${esc(r.status)} ${r.id === selected.id ? 'selected' : ''}" data-action="phase" data-id="${esc(r.id)}" aria-pressed="${r.id === selected.id}"><div class="phase-card-top"><span class="phase-number">${String(i+1).padStart(2,'0')}</span>${badge(r.status)}</div><h3>${esc(r.title)}</h3><p>${r.completed_task_count} / ${r.task_count} work packages recorded complete</p><div class="progress-track"><div class="progress-fill" style="width:${r.task_count ? r.completed_task_count/r.task_count*100 : 0}%"></div></div><small>${esc(phaseDate(r.milestones?.planned_start))} – ${esc(phaseDate(r.milestones?.planned_finish))} · planned</small></button>`).join('')}</div><section class="panel section-spacer phase-detail"><div class="panel-header"><div><div class="eyebrow">Selected phase</div><h2>${esc(selected.title)}</h2><p>${esc(selected.description)}</p></div>${badge(selected.status)}</div><div class="phase-detail-body"><div class="phase-facts"><div><h4>Responsible people</h4><p>${list(selected.owners).map(o => `${esc(o.name)} · ${esc(o.role)}`).join('<br>')}</p></div><div><h4>Acceptance needed to finish</h4><ul>${lines(selected.exit_criteria).map(c => `<li>${esc(c)}</li>`).join('')}</ul></div><div><h4>Current position</h4><p>${esc(selected.status_reason)}</p><p>${selected.acceptance_current ? 'Current acceptance is complete.' : 'This phase is not currently accepted.'}</p></div></div><div class="phase-dependencies"><h4>Dependencies between work packages</h4><p>Some work in this phase depends on: ${[...new Set(list(data.edges).filter(e => e.to === selected.id).map(e => e.from))].map(id => button(phaseLabel(id), "phase", {id,style:"ghost small"})).join("") || "No earlier phase"}</p><p>Work here supports: ${[...new Set(list(data.edges).filter(e => e.from === selected.id).map(e => e.to))].map(id => button(phaseLabel(id), "phase", {id,style:"ghost small"})).join("") || "Final project handoff"}</p><small>These links reflect task and acceptance prerequisites; they do not require every task in one phase to finish before another phase starts.</small></div><div class="table-scroll"><table class="data-table"><thead><tr><th>Work package / owner</th><th>Planned start</th><th>Recorded completion</th><th>Current state</th></tr></thead><tbody>${records.map(r => { const t = list(state().tasks).find(t => t.id === r.task_id); return `<tr><td><strong>${esc(r.title)}</strong><div class="subline">${esc(personName(t?.owner_id))}</div>${r.previous_completions?.length ? `<details class="bottleneck-details"><summary>${r.previous_completions.length} earlier completion(s) retained</summary>${r.previous_completions.map(h => `<p class="subline">${esc(phaseDate(h.completed_at,true))} · Design ${esc(h.design_revision)} · reopened ${esc(phaseDate(h.invalidated_at,true))}</p><div class="action-evidence">${evidenceChips(h.evidence_ids)}</div>`).join('')}</details>` : ''}</td><td>${esc(phaseDate(t?.planned_start,true))}</td><td>${r.actual_finish ? esc(phaseDate(r.actual_finish,true)) : 'Not recorded'}<div class="action-evidence">${evidenceChips(r.evidence_ids)}</div></td><td>${badge(t?.status)}${r.previous_completions?.length && !r.completed ? '<div class="subline">Fresh acceptance required</div>' : ''}</td></tr>`; }).join('')}</tbody></table></div>${selected.blockers?.length ? `<h3>What holds this phase</h3><div class="phase-blockers">${selected.blockers.map(b => `<div><strong>${esc(b.title)}</strong>${b.upstream ? badge('Prerequisite','outline') : ''}<p>${esc(b.reason)}${b.owner ? ` ${esc(b.owner.name)} · ${esc(b.owner.role)}` : ''}</p></div>`).join('')}</div>` : '<p class="phase-clear">No unresolved acceptance blockers in this phase.</p>'}${selected.gates?.length ? `<details class="bottleneck-details"><summary>Inspect the ${selected.gates.length} authority gates</summary>${selected.gates.map(g => `<div class="gate-line"><strong>${esc(g.label)}</strong>${badge(g.acceptance_current ? 'Accepted' : g.status)}<p>${esc(g.acceptance_reason)}</p><p>${esc(g.required_artifact || '')}</p><div class="action-evidence">${evidenceChips(g.evidence_ids)}</div></div>`).join('')}</details>` : ''}<div class="phase-sources">${sourceLinks(selected.source_ids)}</div></div></section><section class="panel section-spacer"><div class="panel-header"><div><h2>Planned timeline & observed progress</h2><p>${esc(data.timing_note)}</p></div></div><div class="table-scroll"><table class="data-table phase-timeline"><thead><tr><th>Phase</th><th>Planned task span</th><th>Recorded phase work completion</th><th>Acceptance now</th></tr></thead><tbody>${rows.map(r => `<tr><td><button class="text-link" data-action="phase" data-id="${esc(r.id)}">${esc(r.title)}</button></td><td>${esc(phaseDate(r.milestones?.planned_start))} – ${esc(phaseDate(r.milestones?.planned_finish))}</td><td>${r.milestones?.actual_finish ? esc(phaseDate(r.milestones.actual_finish,true)) : 'Still open / not fully recorded'}</td><td>${badge(r.status)}</td></tr>`).join('')}</tbody></table></div><div class="panel-footer">Synthetic project dates; no universal task durations or calculated critical path. Actual completion and current acceptance are separate.</div></section><section class="panel section-spacer"><div class="panel-header"><div><h2>Corrections & return paths</h2><p>A new finding reopens its affected review or test. It does not erase unrelated completed work.</p></div>${badge(`${data.open_rework_count || 0} open`,'outline')}</div>${routeCards || empty('No observed return cycle yet', 'Review comments, failed verification or a later fault will appear here when observed. Future scenario events are not shown in advance.',true)}<details class="detail-disclosure"><summary>Typical return paths in this demo</summary><div class="phase-review">${list(ui.data.workflow_review?.inferred_rework_mapping).map(r => `<p><strong>${esc(r.trigger)}</strong> → ${esc(r.return_to)}<br>${esc(r.scope)}</p>`).join('')}<p class="muted">These are product assumptions informed by the sources. The observed finding determines the scope of an actual return.</p></div></details></section>${workflowReview()}`;
+  function calendarRows(){
+    if(Array.isArray(ui.data?.workspace?.calendar))return ui.data.workspace.calendar.map(e=>({
+      ...e,detail:e.confirmation||e.detail,status:e.kind==='response_deadline'?'deadline':e.status
+    }
+    ));
+    if(Array.isArray(ops().calendar))return ops().calendar;
+    const rows=[];
+    for(const t of arr(state().tasks)){
+      if(t.status==='completed'||!t.planned_start)continue;
+      const b=arr(state().bookings).filter(x=>x.task_id===t.id&&!['superseded','cancelled'].includes(x.status));
+      rows.push({
+        id:'task:'+t.id,title:t.title,start:t.planned_start,status:b.length&&b.every(x=>x.status==='confirmed')?'confirmed':'planned',owner_id:t.owner_id,task_id:t.id,detail:t.description
+      }
+      );
+    }
+    for(const r of arr(state().requests)){
+      if(r.due_at&&['pending','sent','open','acknowledged'].includes(r.status))rows.push({
+        id:'request:'+r.id,title:r.request||r.purpose||'Response due',start:r.due_at,status:'deadline',owner_id:r.recipient_id,detail:'Response deadline; not a confirmed appointment.'
+      }
+      );
+    }
+    for(const c of cases()){
+      for(const o of arr(c.options)){
+        if(o.earliest_start&&o.quote_id)rows.push({
+          id:'offer:'+o.quote_id,title:`${o.vendor_name}: ${c.title}`,start:o.earliest_start,status:o.status==='expired'?'expired':'offered',case_id:c.id,detail:'Vendor availability offer; not a booking.'
+        }
+        );
+      }
+      for(const b of arr(ops().bookings).filter(x=>x.case_id===c.id))rows.push({
+        id:'booking:'+b.id,title:b.title||`${c.title} · vendor work`,start:b.start||b.planned_start,status:b.status||'awaiting_confirmation',case_id:c.id,detail:'Accepted plan and counterpart confirmation are separate.'
+      }
+      );
+    }
+    return rows.sort((a,b)=>String(a.start).localeCompare(String(b.start)));
   }
-  function milestonesPanel() {
-    const milestones = list(ui.data.dashboard?.milestones), m = ui.data.dashboard?.metrics || {};
-    if (!milestones.length) return '';
-    return `<section class="panel section-spacer"><div class="panel-header"><div><h2>Whole-project milestones</h2><p>Current plan from signed contract through commissioning and handoff.</p></div>${badge(`Target ${date(m.target_date || state().project?.target_handoff)}`, 'outline')}</div><div class="milestone-strip">${milestones.map(m => `<div class="milestone-item"><span class="milestone-dot ${m.status === 'completed' ? 'complete' : ''}"></span><div><h3>${esc(m.title || taskName(m.task_id))}</h3><p>${esc(date(m.completed_at || m.planned_finish || m.planned_start))}</p>${badge(m.status)}${m.blocker_ids?.length ? `<p>${m.blocker_ids.length} prerequisites tracked</p>` : ''}</div></div>`).join('')}</div><div class="panel-footer"><span>${esc(m.forecast_note || 'Dates are planned milestones. Unresolved readiness conditions can change the outcome.')}</span></div></section>`;
+  function upcomingRows(){
+    const now=new Date(project().now),today=dayKey(project().now),weekday=new Intl.DateTimeFormat('en-US',{
+      weekday:'short',timeZone:timezone()
+    }
+    ).format(now),daysToEnd=7-['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].indexOf(weekday),end=new Date(now.getTime()+daysToEnd*86400000);
+    return calendarRows().filter(e=>dayKey(e.start||e.at)>=today&&new Date(e.start||e.at)<end&&!['completed','cancelled','expired','superseded'].includes(e.status));
   }
-  function finance() {
-    const p = state().project || {}, f = ui.data.dashboard?.finance || {}, resources = list(ui.data.dashboard?.resources), labor = list(p.labor), assumptions = lines(p.assumptions);
-    const costs = list(f.lines).length ? list(f.lines) : list(p.finance?.lines);
-    return `${heading('The resources behind the plan', 'Budget, spending and resource availability for the selected project. Pending changes remain separate from committed costs.', p.name || 'Project economics')}<div class="finance-stats">${[['Baseline budget', f.baseline_total ?? p.budget?.baseline], ['Committed', f.committed_total], ['Actual recorded', f.actual_total], ['Estimated total', f.estimated_total]].map(([label,value]) => `<div class="stat"><div class="stat-top">${esc(label)}</div><div class="stat-number small-value">${value == null ? 'Not recorded' : esc(money(value))}</div></div>`).join('')}</div><div class="cost-change-note"><span>Committed changes <strong>${esc(money(f.committed_change ?? 0))}</strong></span><span>Pending proposed changes <strong>${esc(money(f.proposed_change ?? 0))}</strong></span><span>Estimated variance <strong>${esc(money(f.variance_to_baseline ?? 0))}</strong></span></div><section class="panel"><div class="panel-header"><div><h2>Project cost breakdown</h2><p>Each cost belongs to this project's assumed scope and work.</p></div>${badge(f.currency || p.finance?.currency || 'USD', 'outline')}</div><div class="table-wrap"><table class="data-table cost-table"><thead><tr><th>Cost category</th><th>Budget</th><th>Committed</th><th>Actual recorded</th></tr></thead><tbody>${costs.map(c => `<tr><td><strong>${esc(c.label || words(c.category) || c.id)}</strong>${c.notes ? `<div class="subline">${esc(c.notes)}</div>` : ''}</td><td>${esc(money(c.baseline ?? c.budget))}</td><td>${esc(money(c.committed))}</td><td>${c.actual == null ? 'Not recorded' : esc(money(c.actual))}</td></tr>`).join('')}</tbody></table></div><div class="panel-footer"><span>${esc(f.note || p.finance?.note || 'Illustrative demo costs; no real spending or invoices are connected.')} ${esc(f.actual_note || '')} ${esc(f.ledger_note || '')}${f.actual_as_of ? ` Snapshot: ${esc(date(f.actual_as_of))}.` : ''}</span></div></section>${labor.length ? `<section class="panel section-spacer"><div class="panel-header"><h2>Labor assumptions</h2></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Role / trade</th><th>Crew</th><th>Hours / person</th><th>Hourly rate</th><th>Cost</th><th>Basis</th></tr></thead><tbody>${labor.map(l => `<tr><td><strong>${esc(l.role)}</strong></td><td>${esc(l.crew_size)}</td><td>${esc(l.hours)}</td><td>${esc(money(l.hourly_rate))}</td><td>${esc(money(l.cost))}</td><td>${esc(l.assumption)}</td></tr>`).join('')}</tbody></table></div></section>` : ''}<section class="panel section-spacer"><div class="panel-header"><div><h2>Resource windows & bookings</h2><p>Availability, requests and confirmations remain distinct.</p></div></div><div class="resource-grid">${resources.map(r => `<article class="resource-card"><div class="resource-title"><h3>${esc(r.label || words(r.id))}</h3>${badge(r.status || 'Recorded', 'outline')}</div><p>${esc(lines(r.owner_ids).map(personName).join(' · ') || 'Owner not assigned')}</p><p class="tiny muted">${esc(lines(r.task_ids).map(taskName).join(' · '))}</p><h4>Known available windows</h4>${list(r.windows).length ? `<ul>${list(r.windows).map(w => `<li>${esc(date(w.start, true))} → ${esc(date(w.end, true))}</li>`).join('')}</ul>` : '<p class="tiny muted">No window recorded.</p>'}${list(r.bookings).length ? `<h4>Booking records</h4>${list(r.bookings).map(b => `<div class="resource-booking"><span>${esc(date(b.start || b.planned_start, true))}</span>${badge(b.status)}</div>`).join('')}` : ''}</article>`).join('') || empty('No resource calendars recorded')}</div></section>${milestonesPanel()}<section class="panel section-spacer"><div class="panel-header"><h2>Project-specific assumptions</h2>${badge('Synthetic inputs', 'outline')}</div><div class="panel-body"><p class="assumption-context">${esc(p.description || '')}</p>${assumptions.length ? `<ul class="assumption-list">${assumptions.map(a => `<li>${esc(readable(a))}</li>`).join('')}</ul>` : '<p class="tiny muted">No additional assumptions supplied.</p>'}</div></section>`;
+  function timeRow(e){
+    return `<button class="time-row" data-action="calendar-event" data-id="${esc(e.id)}"><span class="time-chip"><strong>${esc(dt(e.start||e.at))}</strong><small>${esc(dt(e.start||e.at,true).split(', ').slice(1).join(', '))}</small></span><span class="time-copy"><strong>${esc(e.title)}</strong><small>${esc(human(e.status))}${e.owner_id?' · '+esc(personName(e.owner_id)):e.owner?' · '+esc(person(e.owner)?.name||vendors().find(v=>v.id===e.owner)?.name||e.owner):''}</small></span>${icon('chevron')}</button>`;
   }
-  function gateBasis(gate) {
-    const artifacts = lines(gate.required_artifacts || gate.required_artifact);
-    if (!artifacts.length && !gate.source_ids?.length) return '';
-    return `<details class="trace-details"><summary>Required evidence & basis</summary><div class="detail-content">${artifacts.length ? `<ul>${artifacts.map(a => `<li>${esc(display(a))}</li>`).join('')}</ul>` : ''}${gate.assumption ? `<p class="mode-note">${esc(gate.assumption)}</p>` : ''}${lines(gate.source_ids).map(id => { const source = list(ui.data.sources).find(s => s.id === id); const url = safeHref(source?.url); return url ? `<a class="document-source" href="${url}" target="_blank" rel="noopener noreferrer">${esc(source.title)}</a>` : ''; }).join('')}</div></details>`;
+  function messageSummary(m){
+    return m.summary?.text||m.reading_summary?.text||(typeof m.reading_summary==='string'?m.reading_summary:null);
   }
-  function decisions() {
-    const s = state();
-    const proposals = list(s.proposals);
-    const gates = list(s.gates);
-    return `${heading('Plans, approvals & commitments', 'An approved internal plan and an externally confirmed booking are separate records.', 'Decision control')}<div class="two-columns"><div><section class="panel"><div class="panel-header"><h2>Schedule proposals</h2>${badge(proposals.length, 'outline')}</div>${proposals.length ? [...proposals].reverse().map(p => `<article class="proposal-card"><div class="proposal-top"><h3>${esc(p.title || `Proposal ${p.id}`)}</h3>${badge(p.status)}</div><div class="proposal-meta"><span>Based on revision ${esc(p.based_on_revision)}</span><span>Cost change ${esc(money(p.cost_delta))}</span></div><div class="proposal-changes">${list(p.changes).map(c => `<div class="proposal-change"><span>${esc(taskName(c.task_id))}</span><strong>${esc(date(c.planned_start, true))}</strong></div>`).join('') || '<div class="proposal-change">No task changes recorded</div>'}</div><p class="proposal-note">Required approver: ${esc(personName(p.required_approver_id))}. Decisions below act as this authorized person in the simulation.</p><div class="proposal-controls">${['pending', 'proposed', 'pending_approval', 'awaiting_approval', 'draft'].includes(p.status) ? `${button('Approve proposal', 'approve', { id: p.id, icon: 'check', style: 'secondary small' })}${button('Reject', 'reject', { id: p.id, style: 'danger small' })}` : ''}${p.status === 'approved' ? button('Commit approved plan', 'commit', { id: p.id, icon: 'check', style: 'small' }) : ''}</div>${p.evidence_ids?.length ? `<div class="action-evidence">${evidenceChips(p.evidence_ids)}</div>` : ''}</article>`).join('') : empty('No recovery proposal yet', 'When the current plan needs a change, the assistant can create a revision-linked proposal.')}</section><section class="panel section-spacer"><div class="panel-header"><h2>Readiness & authorization gates</h2></div>${gates.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Gate</th><th>Authority</th><th>Status</th></tr></thead><tbody>${gates.map(g => `<tr><td><strong>${esc(g.label || g.id)}</strong>${gateBasis(g)}${g.evidence_ids?.length ? `<div class="action-evidence">${evidenceChips(g.evidence_ids)}</div>` : ''}</td><td>${esc(g.issuer_id ? `Issued by ${personName(g.issuer_id)}` : `Required: ${personName(g.resolver_id)}`)}</td><td>${badge(g.status)}</td></tr>`).join('')}</tbody></table></div>` : empty('No gates recorded')}</section></div><div class="secondary-stack">${requestsPanel(true)}<section class="panel"><div class="panel-header"><h2>External bookings</h2></div><div class="panel-body">${list(s.bookings).length ? list(s.bookings).map(b => `<div class="request-item"><div class="request-person"><span>${esc(taskName(b.task_id) || b.resource || b.id)}</span>${badge(b.status)}</div><p class="request-text">${esc(display(b.resource || b.recipient_id || b.provider_id))} · ${esc(date(b.start || b.planned_start, true))}</p><p class="tiny muted">${esc(b.id)}</p></div>`).join('') : empty('No confirmed bookings', 'Internal approval alone does not establish an external commitment.', true)}</div></section></div></div><section class="panel section-spacer"><div class="panel-header"><h2>Current deployment plan</h2><span class="tiny muted">Revision ${esc(s.project?.revision ?? '—')}</span></div><div class="table-wrap"><table class="data-table task-table"><thead><tr><th>Task / phase</th><th>Owner</th><th>Planned start</th><th>Resource</th><th>Status</th></tr></thead><tbody>${list(s.tasks).map(t => `<tr><td class="task-label"><strong>${esc(t.title)}</strong><div class="subline">${esc(words(t.phase))}</div></td><td>${esc(personName(t.owner_id))}</td><td class="nowrap">${esc(date(t.planned_start, true))}</td><td>${esc(t.resource || '—')}</td><td>${badge(taskStatus(t))}</td></tr>`).join('')}</tbody></table></div></section>`;
+  function messageRow(m){
+    return `<button class="message-row ${ui.messageId===m.id?'selected':''}" data-action="message" data-id="${esc(m.id)}"><span class="sender-avatar">${esc((m.sender_name||personName(m.issuer_id||m.sender_id)).slice(0,1))}</span><span class="message-copy"><span class="row-top"><strong>${esc(displayName(m.sender_name||personName(m.issuer_id||m.sender_id)))}</strong><small>${esc(dt(m.received_at))}</small></span><b>${esc(m.subject||'Stakeholder update')}</b><small class="clamp2">${esc(messageSummary(m)||m.text||m.raw_text)}</small></span></button>`;
   }
-  function people() {
-    return `${heading('The right person, with the right authority', 'Roles, knowledge, and decision rights are separate inputs to the next action.', 'Project stakeholder directory')}<div class="intro-note">${icon('shield')}<span>All people and project-specific authority policies in this demo are synthetic. A contact’s title or message does not grant additional decision rights.</span></div><div class="cards-grid">${list(state().stakeholders).map(p => `<article class="person-card"><div class="person-card-top"><div class="person-icon">${icon('person')}</div><div><h3>${esc(p.name)}</h3><p>${esc(p.role)}</p><p>${esc(p.organization || '')}</p></div></div><div class="eyebrow">Can provide</div>${lines(p.knows).length ? `<ul>${lines(p.knows).map(v => `<li>${esc(display(v))}</li>`).join('')}</ul>` : '<p class="tiny muted">No knowledge scope recorded.</p>'}<div class="eyebrow">Can approve</div>${lines(p.can_approve).length ? `<ul>${lines(p.can_approve).map(v => `<li>${esc(words(display(v)))}</li>`).join('')}</ul>` : '<p class="tiny muted">No decision authority granted.</p>'}${p.contact ? `<span class="contact">${esc(display(p.contact))}</span>` : ''}<div class="authority-note"><strong>Authority basis</strong><br>${esc(display(p.authority_source))}${p.escalation_id ? `<br>Escalation: ${esc(personName(p.escalation_id))}` : ''}</div></article>`).join('')}</div>`;
+  function site(){
+    const p=project(),cs=[...cases().filter(c=>!closed(c)),...contractorRequests().map(r=>({...r,contractor_request:true}))].sort((a,b)=>(b.priority||0)-(a.priority||0)),bs=arr(ui.data.dashboard?.bottlenecks).filter(b=>b.status!=='upcoming');
+    const selected=ui.tab==='constraints';
+    const rows=selected?bs:cs;
+    const key=selected?'constraints':'sitecases';
+    const cal=upcomingRows().slice(0,2);
+    return `${crumb()}${heading(p.name,`${String(p.site||p.location||'').split(' · ')[0]} · ${p.system?.power_kw??'—'} kW / ${p.system?.capacity_kwh??'—'} kWh · Target ${dt(p.target_handoff||p.target_date)}`,btn('Project details','nav','details','quiet'))}${budgetTiles()}${phasesRibbon()}${siteResourceLinks()}<div class="site-grid fill"><section class="panel decision-queue">${panelHead('Your priority queue',pill(`${cs.length} open cases`))}<div class="tabs compact-tabs"><button data-action="queue-tab" data-id="cases" class="${!selected?'active':''}">Decisions & follow-ups <span>${cs.length}</span></button><button data-action="queue-tab" data-id="constraints" class="${selected?'active':''}">Project bottlenecks <span>${bs.length}</span></button></div><div class="panel-scroll">${pageRows(rows,key,3).map((c,i)=>selected?engineRow(c,(ui.pages[key]||0)*3+i):caseRow(c,(ui.pages[key]||0)*3+i,true)).join('')||empty('No open decision cases','Project prerequisites and confirmations remain visible in the bottlenecks tab.')}</div>${pager(key,rows.length,3)}</section><div class="site-side"><section class="panel">${panelHead('Today & this week',link('Calendar','calendar'))}<div class="mini-scroll">${cal.map(timeRow).join('')||empty('No upcoming checkpoints','Open the calendar to view the whole project.')}</div></section><section class="panel">${panelHead('Latest stakeholder updates',link('Inbox','inbox'))}<div class="mini-scroll">${messages().slice(0,2).map(messageRow).join('')||empty('No reports received','Add a field update in the inbox.')}</div></section></div></div>`;
   }
-  function knowledge() {
-    const evidence = list(state().evidence), sources = list(ui.data.sources);
-    return `${heading('Evidence before action', 'Current project records and applicable reference knowledge remain traceable to their source.', 'Knowledge library')}<div class="subtabs" role="tablist"><button class="subtab ${ui.knowledgeTab === 'evidence' ? 'active' : ''}" role="tab" aria-selected="${ui.knowledgeTab === 'evidence'}" data-action="knowledge-tab" data-id="evidence">Project evidence <span>${evidence.length}</span></button><button class="subtab ${ui.knowledgeTab === 'sources' ? 'active' : ''}" role="tab" aria-selected="${ui.knowledgeTab === 'sources'}" data-action="knowledge-tab" data-id="sources">Reference sources <span>${sources.length}</span></button></div>${ui.knowledgeTab === 'evidence' ? `<section class="panel">${evidence.length ? [...evidence].reverse().map(e => `<article class="document-card ${e.id === ui.highlightedEvidence ? 'highlight' : ''}" data-evidence-id="${esc(e.id)}"><div class="document-head"><h3>${esc(e.title || e.id)}</h3>${badge(e.verified ? 'Verified record' : 'Unverified', e.verified ? 'green' : 'gold')}</div><div class="document-meta"><span>${esc(e.id)}</span><span>${esc(personName(e.issuer_id))}</span><span>${esc(words(e.kind))}</span>${e.design_revision ? `<span>Design ${esc(e.design_revision)}</span>` : ''}</div><div class="document-body">${esc(display(e.body || e.content))}</div><div class="document-meta"><span>Effective ${esc(date(e.effective_at, true))}</span><span>Received ${esc(date(e.received_at, true))}</span><span>Project ${esc(e.project_id || state().project?.id || '—')}</span></div></article>`).join('') : empty('No project evidence recorded')}</section>` : `<div class="intro-note">${icon('book')}<span>These sources establish deployment context. Local requirements are applicable only within their documented scope; synthetic internal policies are not claims about EQORE.</span></div><section class="panel">${sources.length ? sources.map(s => { const url = safeHref(s.url || s.source_url); return `<article class="document-card"><div class="document-head"><h3>${esc(s.title || s.name || s.id)}</h3>${badge(s.kind || s.type || 'Reference', 'outline')}</div><div class="document-body">${esc(display(s.summary || s.description || s.claim || s.excerpt || s.content))}</div><div class="source-fields"><div><strong>Applicability</strong><br>${esc(readable(s.applicability || s.scope))}</div><div><strong>Locator / verification</strong><br>${esc(display(s.locator || s.section || s.location))}${s.checked_on || s.checked_at || s.verified_at || s.accessed_at ? ` · ${esc(date(s.checked_on || s.checked_at || s.verified_at || s.accessed_at))}` : ''}</div></div>${s.evidence_status ? `<p class="tiny muted" style="margin-top:12px">${esc(s.evidence_status)}</p>` : ''}${url ? `<a class="document-source" href="${url}" target="_blank" rel="noopener noreferrer">Read original source ${icon('link')}</a>` : '<div class="document-meta">No source URL supplied</div>'}</article>`; }).join('') : empty('No references loaded')}</section>`}`;
+  function siteResourceLinks() {
+    const r=resources(),m=r.metrics||{};
+    return `<nav class="site-resource-links" aria-label="Project delivery details"><button data-action="nav" data-id="subcontractors">${icon('vendor')}<span><strong>Subcontractors</strong><small>${m.subcontractor_count??arr(r.subcontracts).length} project partners</small></span>${icon('chevron')}</button><button data-action="nav" data-id="procurement">${icon('paper')}<span><strong>Procurement</strong><small>Delivery ${dt(r.procurement?.delivery?.eta)}</small></span>${icon('chevron')}</button><button data-action="nav" data-id="readiness">${icon('check')}<span><strong>Readiness</strong><small>${esc(readinessLabel(r.readiness))}</small></span>${icon('chevron')}</button></nav>`;
   }
-  function coverage() {
-    const capabilities = list(ui.data.capabilities);
-    return `${heading('Grounded in the deployment PM role', 'Coverage spans the deployment lifecycle. Each capability’s actual maturity is shown explicitly.', 'Responsibility → capability → test')}<div class="intro-note">${icon('info')}<span>Digital coordination can be automated within recorded permissions. Physical work, measurements, and authorized signoffs are supplied as simulated external evidence.</span></div><div class="coverage-grid">${capabilities.length ? capabilities.map(c => `<article class="coverage-card"><div class="capability-id">${esc(c.id || '')}</div><h3>${esc(c.title || c.name || c.id)}</h3>${badge(c.status || c.maturity || 'Not assessed', 'outline')}<p>${esc(c.description || 'No implementation description provided.')}</p>${c.scenarios ? `<div class="mini-metrics">Scenarios: ${esc(lines(c.scenarios).join(', '))}</div>` : ''}</article>`).join('') : empty('Coverage metadata not supplied', 'The server has not reported maturity for these capabilities.')}</div>`;
+  function evidenceButtons(ids) {
+    return arr(ids).map(id=>btn(id,'evidence-record',id,'quiet small-button')).join('');
   }
-  function checkItems(checks) {
-    const values = Array.isArray(checks) ? checks : checks && typeof checks === 'object' ? Object.entries(checks).map(([key, value]) => typeof value === 'object' && value !== null ? { name: key, ...value } : { name: key, passed: value }) : [];
-    return `<ul class="check-list">${values.map(c => { const pass = c.passed ?? c.pass ?? c.ok ?? (['passed', 'pass'].includes(c.status) ? true : ['failed', 'fail'].includes(c.status) ? false : null); return `<li><span class="check-symbol ${pass === true ? 'passed' : pass === false ? 'failed' : 'unknown'}">${pass === true ? '✓' : pass === false ? '×' : '·'}</span><span>${esc(typeof c === 'string' ? c : c.name || c.title || c.description || c.id || c.check || 'Check')}${c.message || c.detail || c.reason ? ` — ${esc(display(c.message || c.detail || c.reason))}` : ''}</span></li>`; }).join('')}</ul>`;
+  function subcontractors() {
+    const r=resources(),teams=arr(r.subcontracts),selected=teams.find(x=>x.id===ui.subcontractId)||teams[0];
+    return `${crumb('Subcontractors')}${heading('Subcontractors & work packages','External delivery partners assigned to this project. Availability offers remain separate from bookings.',btn('Back to site','nav','site','quiet'))}<div class="tabs resource-tabs"><button data-action="resource-tab" data-id="teams" class="${ui.resourceTab==='teams'?'active':''}">Partners & scope</button><button data-action="resource-tab" data-id="schedule" class="${ui.resourceTab==='schedule'?'active':''}">Booking calendar</button></div>${ui.resourceTab==='schedule'?subcontractCalendar():`<div class="resource-grid fill"><section class="panel">${panelHead('Project partners',pill(`${teams.length} partners`))}<div class="panel-scroll">${pageRows(teams,'subcontractors',6).map(t=>`<button class="subcontract-row ${selected?.id===t.id?'selected':''}" data-action="subcontractor" data-id="${esc(t.id)}"><strong>${esc(displayName(t.organization||t.name))}</strong><span>${esc(t.role||'External subcontractor')}</span><small>${arr(t.tasks).length?`${t.completed_count??0}/${t.task_count??arr(t.tasks).length} work packages completed`:'Availability offer only · no assignment'}</small>${pill(t.status)}</button>`).join('')||empty('No subcontractors recorded','Record a responsible external partner before confirming delivery work.')}</div>${pager('subcontractors',teams.length,6)}</section><section class="panel"><div class="panel-scroll panel-body">${selected?subcontractDetail(selected):empty('Select a project partner')}</div></section></div>`}`;
   }
-  function evaluation() {
-    const reports = list(ui.data.evaluations);
-    const report = ui.report || reports[0];
-    const runtime = ui.data.runtime || {}, cases = list(ui.data.scenarios);
-    const selectedCase = cases.find(c => c.id === ui.scenarioId) || cases[0];
-    return `${heading('Test the decisions, inspect the consequences', 'The current product runs against synthetic cases through its real state and action interfaces.', 'Evaluation lab')}<section class="test-case-picker panel"><div><label for="scenario-select">Evaluation test case</label><select id="scenario-select" class="case-select"${busyAttr()}>${cases.map(c => `<option value="${esc(c.id)}"${c.id === selectedCase?.id ? ' selected' : ''}>${esc(c.title || c.id)}</option>`).join('')}</select><p>${esc(selectedCase?.description || '')}</p></div><div>${button('Open test case', 'open-case', { style: 'secondary', icon: 'flask' })}<p class="mode-note">Opens a separate test workspace; saved demo projects are preserved.</p></div></section><div class="eval-toolbar"><div><h2>Test whole projects or individual cases</h2><p>Project tests run complete deployments. The 14-case suite checks specific edge cases. Live evaluation runs the selected test case with fresh ChatGPT decisions and can take several minutes. Results are simulation evidence, not operational performance claims.</p></div><div class="eval-actions">${button('Test all demo projects', 'evaluate-projects', { icon: 'layers', style: 'secondary' })}${button('Run 14-case test suite', 'evaluate-baseline', { icon: 'flask', style: 'secondary' })}${button('Test selected case with LLM', 'evaluate-live', { icon: 'spark', style: 'orange', disabled: !runtime.available })}</div></div><div class="runtime-card">${icon('spark')}<div><h3>${esc(runtime.provider || 'ChatGPT runtime')} · ${runtime.available ? 'Available' : 'Unavailable'}</h3><p>${esc(runtime.detail || 'No runtime status details supplied.')} ${runtime.live_calls != null ? `${esc(runtime.live_calls)} live calls this server session.` : ''}</p>${runtime.last_error ? `<p>Last runtime error: ${esc(runtime.last_error)}</p>` : ''}</div></div>${reports.length > 1 ? `<div class="report-history">${reports.map((r, i) => `<button class="history-button ${report?.id === r.id ? 'active' : ''}" data-action="report" data-id="${esc(r.id)}">${esc(words(r.mode))} · ${esc(date(r.created_at, true))}${i === 0 ? ' · latest' : ''}</button>`).join('')}</div>` : ''}${report ? renderReport(report) : `<section class="panel">${empty('No evaluation run yet', 'Run the fixed-rule baseline first, then compare a live LLM run. Every case exposes its checks and execution trace.')}</section>`}`;
+  function subcontractDetail(t) {
+    const offers=arr(t.offers),tasks=arr(t.tasks);
+    return `<div class="row-top"><div><span class="eyebrow">PROJECT SUBCONTRACTOR</span><h2>${esc(displayName(t.organization||t.name))}</h2><p class="muted small">${esc(displayName(t.name))} · ${esc(t.role)}</p></div>${pill(t.status)}</div><h3 class="section-title">Assigned scope & bookings</h3>${tasks.map(task=>`<article class="work-package"><div class="row-top"><strong>${esc(task.title)}</strong>${pill(task.status)}</div><p>${esc(dt(task.start,true))} → ${esc(dt(task.end,true))}</p><div class="small muted">${esc(task.duration_hours??'—')} hours · ${esc(task.confirmation||'Booking confirmation not recorded')}</div>${arr(task.required_gates).length?`<div class="gate-chips">${arr(task.required_gates).map(g=>pill(`${g.label||human(g.id)}: ${g.status||'not recorded'}`)).join('')}</div>`:''}${arr(task.evidence_ids).length?`<details class="technical-detail"><summary>Source evidence</summary>${evidenceButtons(task.evidence_ids)}</details>`:''}</article>`).join('')||'<p class="muted">No committed work package for this partner.</p>'}${offers.length?`<h3 class="section-title">Availability offers · not booked</h3>${offers.map(o=>`<article class="work-package offered"><div class="row-top"><strong>${esc(dt(o.earliest_start,true))}</strong>${pill(o.status||'offered')}</div><p>${money(o.total_price)} · ${esc(o.duration_hours??'—')} hours</p><small>Valid until ${esc(dt(o.expires_at,true))}. Scope and PM approval still apply.</small>${!o.eligible?`<p class="excluded">Not currently eligible: ${esc(arr(o.exclusion_reasons).join(' · ')||'Revalidation is required.')}</p>`:''}${o.case_id?btn('Review linked decision','case',o.case_id,'quiet small-button'):''}</article>`).join('')}`:''}${t.performance?`<h3 class="section-title">Recorded performance</h3><p class="small">${esc(performance(t.performance))}</p>`:''}${t.qualifications?`<details class="technical-detail"><summary>Qualifications and cost allocation</summary><p>${esc(readable(t.qualifications))}</p>${resourceCosts(t.cost_lines)}</details>`:''}`;
   }
-  function renderReport(report) {
-    const summary = report.summary || {};
-    return `<div class="report-meta"><span>${esc(report.id || 'Evaluation report')}</span><span>${esc(words(report.mode))} mode</span><span>Product ${esc(report.product_version || 'version not reported')}</span><span>${esc(date(report.created_at, true))}</span></div><div class="eval-summary"><div class="stat"><div class="stat-top">Cases evaluated</div><div class="stat-number">${esc(summary.total ?? list(report.cases).length)}</div></div><div class="stat"><div class="stat-top">Passed</div><div class="stat-number" style="color:var(--teal)">${esc(summary.passed ?? '—')}</div></div><div class="stat"><div class="stat-top">Failed</div><div class="stat-number" style="color:var(--red)">${esc(summary.failed ?? '—')}</div></div></div>${summary.partially_covered || summary.live_decisions || summary.untested ? `<p class="mode-note">${summary.partially_covered ? `${esc(summary.partially_covered)} ${summary.partially_covered === 1 ? 'case covers' : 'cases cover'} part of the authored design; remaining dimensions are listed below. ` : ''}${summary.live_decisions ? `${esc(summary.live_decisions)} fresh product decisions recorded. ` : ''}${summary.untested ? `${esc(summary.untested)} cases untested.` : ''}</p>` : ''}<section class="panel"><div class="panel-header"><h2>Case results</h2>${badge(report.mode === 'live' ? 'Fresh LLM execution' : report.suite === 'challenges' ? 'Independent product checks' : 'Fixed-rule baseline', report.mode === 'live' ? 'live' : 'outline')}</div>${list(report.cases).map(c => `<article class="eval-case"><div class="eval-case-head"><div><h3>${esc(c.title || c.id)}</h3><div class="document-meta">${esc(c.id)}${c.scenario_version ? ` · Scenario ${esc(c.scenario_version)}` : ''}</div></div>${badge(c.status || 'unknown')}</div>${checkItems(c.checks)}${lines(c.untested_dimensions).length ? `<p class="mode-note"><strong>Not tested:</strong> ${esc(lines(c.untested_dimensions).join('; '))}</p>` : ''}${lines(c.limitations).length ? `<div class="mode-note"><strong>Coverage limits:</strong><ul>${lines(c.limitations).map(l => `<li>${esc(display(l))}</li>`).join('')}</ul></div>` : ''}${c.final_summary ? `<details class="trace-details"><summary>Inspect final project state</summary><pre>${pretty(c.final_summary)}</pre></details>` : ''}${c.error ? `<p class="tiny" style="color:var(--red);margin-top:10px">${esc(readable(c.error))}</p>` : ''}<details class="trace-details"><summary>Inspect execution trace${Array.isArray(c.trace) ? ` · ${c.trace.length} steps` : ''}</summary><pre>${pretty(c.trace || [])}</pre></details></article>`).join('')}</section>${lines(report.limitations).length ? `<div class="intro-note section-spacer">${icon('info')}<div><strong>Interpretation limits</strong><ul>${lines(report.limitations).map(l => `<li>${esc(display(l))}</li>`).join('')}</ul></div></div>` : ''}<details class="detail-disclosure"><summary>Complete evaluation report</summary><div class="detail-content"><pre>${pretty(report)}</pre></div></details>`;
+  function addDay(date,amount) {
+    const value=new Date(`${date}T12:00:00Z`);value.setUTCDate(value.getUTCDate()+amount);return value.toISOString().slice(0,10);
   }
-  function challenges() {
-    const design = ui.data.challenge_design || {}, reports = list(ui.data.challenge_reports);
-    const items = list(design.challenges || design.designs || design.cases);
-    const report = reports.find(r => r.id === ui.challengeReport) || reports[0];
-    const designs = items.map(c => `<article class="challenge-case"><div class="document-head"><h3>${esc(c.title || c.name || c.id)}</h3>${badge(c.category || c.failure_type || c.id,'outline')}</div><p>${esc(c.description || c.setup || c.challenge || c.hypothesis || '')}</p>${c.expected_invariant || c.expected_behavior ? `<p><strong>Expected:</strong> ${esc(readable(c.expected_invariant || c.expected_behavior))}</p>` : ''}<details class="trace-details"><summary>Inspect challenge design</summary><pre>${pretty(c)}</pre></details></article>`).join('');
-    return `${heading('Find where the product breaks', 'A separate LLM proposes difficult situations. Independent checks exercise the actual product and retain both failures and reruns.', 'Challenge lab')}<div class="intro-note">${icon('shield')}<span>Challenge designs and expected outcomes stay outside the product agents’ context. Results apply to the executable checks described in each case; broader untested requirements remain visible.</span></div><section class="panel"><div class="panel-header"><div><h2>${items.length} independently generated challenges</h2><p>Separate from the three demo stories</p></div>${button('Run challenge checks', 'evaluate-challenges', {style:'secondary',icon:'flask',disabled:!items.length})}</div><div class="panel-body"><p class="tiny muted">The designer used fresh ChatGPT inference. This button reruns the recorded checks with fixed rules; fresh live product-agent probes are labelled separately below.</p>${design.created_at ? `<div class="challenge-origin"><span>Generated ${esc(date(design.created_at,true))}</span><span>${esc(design.id || design.version || '')}</span></div>` : ''}${design.designer ? `<details class="trace-details"><summary>Challenge-generation provenance</summary><pre>${pretty(design.designer)}</pre></details>` : ''}</div></section><section class="section-spacer"><h2>Recorded outcomes</h2><div class="challenge-compare">${reports.map(r => `<button class="history-button ${r.id === report?.id ? 'active' : ''}" data-action="challenge-report" data-id="${esc(r.id)}">${esc(words(r.phase || 'run'))} · ${r.mode === 'live' ? 'Live LLM' : 'Baseline'} · ${esc(r.summary?.passed ?? 0)} passed / ${esc(r.summary?.failed ?? 0)} failed${r.summary?.untested ? ` / ${esc(r.summary.untested)} untested` : ''}</button>`).join('')}</div>${report ? renderReport(report) : empty('No challenge run recorded')}</section><section class="panel section-spacer"><details class="detail-disclosure"><summary>Inspect all ${items.length} challenge designs and expected outcomes</summary>${designs || empty('Challenge design is being prepared','The independent generation record will appear here when available.')}</details></section>`;
+  function resourceCalendarRows() {
+    return arr(resources().calendar).map(e=>({...e,detail:e.confirmation||e.detail}));
   }
-  function activity() {
-    const entries = [...list(state().audit)].reverse();
-    return `${heading('Every action leaves a record', 'Inspect state changes and preserve the reasoning behind earlier recommendations.', 'Project audit trail', '<a class="button secondary" href="/api/export" download="eqore-project-snapshot.json">' + icon('download') + 'Export current records</a>')}${reasoningHistory()}<section class="panel section-spacer"><div class="panel-header"><h2>Current project activity</h2>${badge(`${entries.length} records`, 'outline')}</div><div class="panel-body">${entries.length ? `<div class="timeline">${entries.map(a => `<article class="timeline-item"><h3>${esc(a.summary || a.message || a.title || words(a.action_type || a.type || a.action?.type || a.action) || 'Project update')}</h3><div class="timeline-meta">${esc(date(a.at || a.timestamp || a.created_at, true))}${a.actor_id || a.actor ? ` · ${esc(personName(a.actor_id || a.actor))}` : ''}${a.revision != null ? ` · Revision ${esc(a.revision)}` : ''}</div>${(a.detail || a.details) && typeof (a.detail || a.details) === 'string' ? `<p>${esc(a.detail || a.details)}</p>` : ''}<details><summary>Inspect record</summary><pre>${pretty(a)}</pre></details></article>`).join('')}</div>` : empty('No activity recorded', 'Project operations will appear here once performed.')}</div></section>`;
+  function subcontractCalendar() {
+    const records=resourceCalendarRows(),teams=arr(resources().subcontracts);
+    const now=dayKey(project().now),start=addDay(now,ui.weekOffset*7),days=Array.from({length:7},(_,i)=>addDay(start,i));
+    const rows=teams.filter(t=>records.some(e=>e.owner_id===t.owner_id||e.owner_id===t.id));
+    return `<section class="panel fill subcontract-calendar">${panelHead(`${dt(days[0])} – ${dt(days[6])}`,`<div class="week-actions">${btn('←','week','-1','quiet small-button')}${btn('Project week','week','reset','quiet small-button')}${btn('→','week','1','quiet small-button')}</div>`)}<div class="calendar-legend resource-legend">${['confirmed','planned','offered','completed'].map(x=>pill(x)).join('')}<span>Project timezone: ${esc(timezone())}. This view does not imply availability on other projects.</span></div><div class="panel-scroll"><div class="subcontract-gantt"><div class="gantt-heading">External partner</div>${days.map(d=>`<div class="gantt-heading ${d===now?'today':''}">${esc(new Intl.DateTimeFormat('en-US',{weekday:'short',timeZone:'UTC'}).format(new Date(d+'T12:00:00Z')))}<strong>${esc(dt(d))}</strong></div>`).join('')}${rows.map(t=>`<div class="gantt-owner"><strong>${esc(displayName(t.organization||t.name))}</strong><small>${esc(t.role)}</small></div>${days.map(d=>{const entries=records.filter(e=>(e.owner_id===t.owner_id||e.owner_id===t.id)&&dayKey(e.start)<=d&&dayKey(e.end||e.start)>=d);return `<div class="gantt-day ${d===now?'today':''}">${entries.map(e=>`<button class="booking-chip ${esc(tone(e.status))}" data-action="resource-event" data-id="${esc(e.id)}"><strong>${esc(e.title)}</strong><small>${esc(human(e.status))}</small></button>`).join('')}</div>`;}).join('')}`).join('')}</div>${!rows.length?empty('No subcontractor work windows recorded','Assigned packages and scoped availability offers appear here when recorded.'):''}</div><div class="panel-bottom"><span class="fineprint">An empty day means no booking is recorded here, not that the subcontractor is available.</span>${btn('All project checkpoints','nav','calendar','quiet small-button')}</div></section>`;
   }
-  function reasoningHistory() {
-    const snapshots = list(ui.data.reasoning_history);
-    return `<section class="panel"><div class="panel-header"><div><h2>Saved reasoning snapshots</h2><p>Reasoning for the selected project is retained after actions and resets. Each snapshot records the facts available at that time.</p></div>${badge(snapshots.length, 'outline')}</div>${snapshots.length ? snapshots.map(item => {
-      const r = item.recommendation || {};
-      return `<article class="document-card"><div class="document-head"><h3>${esc(r.title || words(r.action_type) || 'Saved recommendation')}</h3>${badge(r.mode === 'live' ? 'Live LLM' : r.mode === 'baseline' ? 'Fixed-rule baseline' : 'Mode not recorded', r.mode === 'live' ? 'live' : 'outline')}</div><div class="document-meta"><span>${esc(date(item.created_at, true))}</span><span>Session version ${esc(item.session_version ?? 'Not recorded')}</span><span>${esc(item.id)}</span>${item.project_id ? `<span>Project ${esc(item.project_id)}</span>` : ''}${item.scenario_id ? `<span>Test case ${esc(item.scenario_id)}</span>` : ''}</div><details class="trace-details"><summary>Inspect saved rationale & agent trace</summary><div class="detail-content"><h4>Blocker</h4><p>${esc(display(r.blocker))}</p><h4>Why this action</h4><p>${esc(display(r.reasoning?.summary || r.why_now))}</p>${reasoningDetails(r)}<h4>Request / operation</h4><p>${esc(display(r.request))}</p><h4>Authority</h4><p>${esc(display(r.authority))}</p><h4>Supporting evidence references at that time</h4><p>${lines(r.evidence_ids).length ? esc(lines(r.evidence_ids).join(' · ')) : 'No evidence references supplied.'}</p>${r.agent_trace ? `<h4>Structured product-agent trace</h4><pre>${pretty(r.agent_trace)}</pre>` : '<p class="mode-note">No agent trace recorded for this snapshot.</p>'}<details class="trace-details"><summary>Complete recommendation snapshot</summary><pre>${pretty(r)}</pre></details></div></details></article>`;
-    }).join('') : empty('No saved reasoning snapshots yet', 'Generate a live or baseline recommendation to preserve its rationale and structured trace.')}</section>`;
+  function resourceCosts(lines) {
+    return arr(lines).length?`<table class="compare-table"><thead><tr><th>Allocation</th><th>Baseline</th><th>Committed</th><th>Actual</th></tr></thead><tbody>${arr(lines).map(l=>`<tr><th>${esc(l.label||l.category||l.id)}${l.allocation?`<small>${esc(l.allocation==='shared'?'Shared allocation · not a separate payable amount':'Exclusively attributed allocation')}</small>`:''}</th><td>${money(l.baseline)}</td><td>${money(l.committed)}</td><td>${money(l.actual)}</td></tr>`).join('')}</tbody></table>`:'';
   }
-  function render() {
-    if (!ui.data) return;
-    const previousFlowScroll = document.querySelector('.flow-scroller')?.scrollLeft || 0;
-    const pages = { portfolio, workspace, phases, finance, decisions, people, knowledge, coverage, evaluation, challenges, activity };
-    app.innerHTML = `<div class="app-shell">${sidebar()}<main class="main">${topbar()}<div class="content">${notices()}${(pages[ui.view] || workspace)()}<footer class="footer-note"><span>EQORE deployment coordination prototype · Synthetic projects and permissions · External actions simulated</span><span>Evidence → authority → action</span></footer></div></main></div>`;
-    if (ui.view === 'workspace') requestAnimationFrame(() => { drawEdges(); const scroller = document.querySelector('.flow-scroller'); if (scroller) scroller.scrollLeft = previousFlowScroll; });
+  function procurement() {
+    const p=resources().procurement||{},d=p.delivery||{},o=p.order||{},sh=p.shutdown||{};
+    return `${crumb('Procurement')}${heading('Procurement & site access','Track equipment, physical receipt and the customer window alongside the current plan.',btn('Back to site','nav','site','quiet'))}<div class="procurement-grid fill"><section class="panel"><div class="panel-scroll panel-body"><span class="eyebrow">EQUIPMENT & DELIVERY</span><h2>${esc(p.system?.power_kw??project().system?.power_kw??'—')} kW / ${esc(p.system?.capacity_kwh??project().system?.capacity_kwh??'—')} kWh system</h2><div class="pair"><span>Equipment order</span>${pill(o.status)}</div><div class="pair"><span>Latest delivery estimate</span><strong>${esc(dt(d.eta,true))}</strong></div><div class="pair"><span>Physical receipt</span>${pill(d.receipt_status)}</div><div class="pair"><span>Planned unloading</span><strong>${esc(dt(d.unload_start,true))}</strong></div>${d.detail?`<div class="reason-box ${d.conflict?'delivery-conflict':''}"><span class="eyebrow">${d.conflict?'SCHEDULE CONFLICT':'DELIVERY CONTEXT'}</span><p>${esc(d.detail)}</p></div>`:''}<h3 class="section-title">Source records</h3>${evidenceButtons([...arr(o.evidence_ids),...arr(d.eta_evidence_ids),...arr(d.receipt_evidence_ids)])||'<p class="muted small">No order or physical-receipt record linked.</p>'}<h3 class="section-title">Information still needed</h3><ul class="body-list">${arr(p.unknowns).map(x=>`<li>${esc(readable(x))}</li>`).join('')||'<li>No additional procurement unknowns are listed.</li>'}</ul></div></section><section class="panel"><div class="panel-scroll panel-body"><span class="eyebrow">CUSTOMER ACCESS</span><h2>Shutdown & work windows</h2><div class="pair"><span>Customer authorization</span>${pill(sh.status)}</div><div class="pair"><span>Planned tie-in</span><strong>${esc(dt(sh.planned_start,true))}</strong></div>${sh.detail?`<p class="fineprint">${esc(sh.detail)}</p>`:''}${arr(sh.windows).map(w=>`<div class="work-package"><strong>${esc(dt(w.start,true))} – ${esc(dt(w.end,true))}</strong><p class="small muted">${esc(w.status||'Recorded window; confirm scope and authority before use.')}</p></div>`).join('')||'<p class="muted">No customer work window is recorded.</p>'}${evidenceButtons(sh.evidence_ids)}<h3 class="section-title">Related cost allocations</h3>${resourceCosts(p.cost_lines)||'<p class="muted">No procurement cost allocation is recorded.</p>'}${btn('Full budget & expenses','nav','budget','quiet small-button')}</div></section></div>`;
   }
-  function drawEdges() {
-    const flow = document.getElementById('dependency-flow'), svg = document.getElementById('flow-edges');
-    if (!flow || !svg) return;
-    const frame = flow.getBoundingClientRect();
-    const nodes = new Map([...flow.querySelectorAll('.task-node')].map(n => [n.dataset.id, n]));
-    svg.querySelectorAll('path[data-edge]').forEach(p => p.remove());
-    list(state().tasks).forEach(task => lines(task.predecessors).forEach(id => {
-      const a = nodes.get(id), b = nodes.get(task.id); if (!a || !b) return;
-      const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
-      const x1 = ar.right - frame.left, y1 = ar.top + ar.height / 2 - frame.top;
-      const x2 = br.left - frame.left - 3, y2 = br.top + br.height / 2 - frame.top;
-      const curve = Math.max(15, (x2 - x1) / 2);
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', `M ${x1} ${y1} C ${x1 + curve} ${y1}, ${x2 - curve} ${y2}, ${x2} ${y2}`);
-      path.setAttribute('stroke', '#b3c2b6'); path.setAttribute('stroke-width', '1.4'); path.setAttribute('fill', 'none'); path.setAttribute('marker-end', 'url(#arrowhead)'); path.setAttribute('data-edge', 'true');
-      svg.appendChild(path);
-    }));
+  function readiness() {
+    const r=resources().readiness||{},checks=arr(r.checks);
+    return `${crumb('Readiness')}${heading('Project readiness',readinessLabel(r)+' · evidence-backed prerequisites, not a dispatch authorization.',btn('Back to site','nav','site','quiet'))}<div class="readiness-overview"><div><strong>${r.accepted_count??0}</strong><span>accepted checks</span></div><div><strong>${r.waiting_count??0}</strong><span>checks still open</span></div><p>Next milestone: <strong class="milestone-name">${esc(r.next_milestone?.label||'Not recorded')}</strong> · ${esc(dt(r.next_milestone?.planned_start))}. Later-stage checks can remain open without blocking the current stage.</p></div><section class="panel fill">${panelHead('Readiness checks',btn('Project evidence','nav','evidence','quiet small-button'))}<div class="panel-scroll"><div class="readiness-check-grid">${checks.map(c=>`<article class="readiness-check"><span class="eyebrow">${esc(human(c.stage||'Project'))}</span><div class="row-top"><h3>${esc(c.label)}</h3>${pill(c.status,c.status==='accepted'?'green':c.status==='waiting'?'amber':'')}</div><p>${esc(c.detail||c.criteria)}</p>${c.criteria&&c.criteria!==c.detail?`<small class="muted">Required: ${esc(c.criteria)}</small>`:''}<div class="readiness-owner">${icon('vendor')} ${esc(personName(c.owner_id))}</div>${arr(c.task_ids).length?`<small class="muted">${esc(arr(c.task_ids).map(taskName).join(' · '))}</small>`:''}${arr(c.evidence_ids).length?`<details class="technical-detail"><summary>Acceptance evidence</summary>${evidenceButtons(c.evidence_ids)}</details>`:''}</article>`).join('')||empty('Readiness has not been assessed','Project evidence and acceptance gates will populate this view.')}</div></div></section>`;
   }
-  async function api(path, body) {
-    const response = await fetch(path, body === undefined ? { cache: 'no-store' } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    let result;
-    try { result = await response.json(); } catch { throw new Error(`Server returned an unreadable response (${response.status}).`); }
-    if (!response.ok) throw new Error(result.error || `Request failed (${response.status}).`);
-    return result;
+  function source(m,full=false){
+    if(!m)return empty('No original message linked','This case may be derived from project evidence.');
+    const attachments=arr(m.attachments),summary=messageSummary(m),request=arr(ui.data?.workspace?.contractor_requests).find(r=>r.message_id===m.id);
+    return `<div class="source-head"><span class="sender-avatar">${esc((m.sender_name||personName(m.issuer_id)).slice(0,1))}</span><div><strong>${esc(displayName(m.sender_name||personName(m.issuer_id||m.sender_id)))}</strong><small>${esc(person(m.issuer_id||m.sender_id)?.role||m.sender_role||'Stakeholder')} · ${esc(dt(m.received_at,true))}</small></div>${pill('Original')}</div><h3 class="source-subject">${esc(m.subject||'Stakeholder report')}</h3>${request?`<div class="contractor-status">${pill(request.status)}<span>${esc(request.task_title||taskName(request.task_id))}</span><small>Contractor submission · changes require review and authorized scope.</small></div>`:''}<blockquote class="source-text ${full?'':'short'}">${esc(m.text||m.raw_text||'')}</blockquote>${attachments.length?`<div class="attachments">${attachments.map(a=>`<button class="attachment" data-action="attachment" data-id="${esc(a.id)}"><img src="/api/attachments/${encodeURIComponent(a.id)}${project().demo_project_id?'?project_id='+encodeURIComponent(project().demo_project_id):''}" alt="${esc(a.name||a.filename||'Stakeholder attachment')}" loading="lazy"><span>${esc(a.name||a.filename||'Field image')}</span></button>`).join('')}</div>`:''}<div class="summary-box"><div class="row-top"><strong>${icon('spark')} PM reading summary</strong>${summary?pill('Live LLM','teal'):''}</div>${summary?`<p>${esc(summary)}</p>${arr(m.summary?.uncertainties||m.reading_summary?.uncertainties).length?`<p class="small muted">Uncertain: ${esc(arr(m.summary?.uncertainties||m.reading_summary?.uncertainties).join(' · '))}</p>`:''}`:'<p class="muted">A reading summary has not been generated for this report.</p>'}<div class="summary-actions">${btn(summary?'Refresh with ChatGPT':'Summarize & triage with ChatGPT','summarize',m.id,'quiet small-button',!(ui.data.runtime?.available&&ui.data.runtime?.authenticated))}</div></div>${full?`<p class="fineprint">Original text and attachments are preserved. Summary text helps you read; reported claims and validated project evidence remain separate.</p>`:`<button class="text-link" data-action="message" data-id="${esc(m.id)}">Read full report in inbox →</button>`}`;
   }
-  function useEnvelope(data) {
-    if (!data || !data.state) throw new Error('The server did not return current project records.');
-    ui.data = data;
-    if (!ui.scenarioId || !list(data.scenarios).some(c => c.id === ui.scenarioId)) ui.scenarioId = data.state.project?.scenario_id || data.scenarios?.[0]?.id;
+  function caseTabs(){
+    return `<div class="tabs"><button class="${ui.tab==='change'?'active':''}" data-action="case-tab" data-id="change">Proposed change</button><button class="${ui.tab==='vendors'?'active':''}" data-action="case-tab" data-id="vendors">Vendor options</button><button class="${ui.tab==='people'?'active':''}" data-action="case-tab" data-id="people">People & authority</button><button class="${ui.tab==='evidence'?'active':''}" data-action="case-tab" data-id="evidence">Evidence</button></div>`;
   }
-  async function mutate(path, body, title) {
-    if (ui.busy) return;
-    ui.busy = true; ui.notice = null; render();
+  function decision(){
+    const c=selectedCase();
+    if(!c)return `${crumb('Decision')}${empty('This case is no longer in this project','Return to the site to see current cases.')}${btn('Back to site','nav','site')}`;
+    const p=c.current_proposal,linked=messages().filter(m=>arr(c.source_message_ids).includes(m.id)||m.case_id===c.id);
+    const content=ui.tab==='vendors'?vendorOptions(c):ui.tab==='people'?casePeople(c):ui.tab==='evidence'?caseEvidence(c):caseChange(c);
+    const pending=p&&['draft','proposed','pending','pending_approval','awaiting_approval'].includes(p.status);
+    const over=p&&p.required_approver_id&&p.required_approver_id!=='pm';
+    return `${crumb('Decision')}${heading(c.title,c.why,`${pill(priority(c.priority))}${pill(c.status)}`)}<div class="decision-grid fill"><section class="panel source-panel">${panelHead('What triggered this',linked.length>1?pill(`${linked.length} linked reports`):'')}<div class="panel-scroll panel-body">${source(linked.find(m=>m.id===ui.messageId)||linked.find(m=>m.id===arr(c.source_message_ids)[0])||linked[0])}${linked.length>1?`<div class="linked-reports">${linked.map(m=>btn(m.subject||dt(m.received_at),'case-message',m.id,'quiet small-button')).join('')}</div>`:''}</div></section><section class="panel decision-detail">${caseTabs()}<div class="panel-scroll panel-body">${content}</div></section></div><div class="actionbar"><div class="actionbar-note">${p?`<strong>${pending?'Review exact scope, cost and dates':esc(human(p.status))}</strong><small>${over&&!['approved','committed'].includes(p.status)?`Approval belongs to ${esc(personName(p.required_approver_id))}; PM authority is insufficient.`:'Approval updates the internal plan. Vendor booking and institutional acceptance remain separate.'}</small>`:'<strong>Compare available, qualified vendors</strong><small>An availability inquiry does not book work.</small>'}</div><div class="actionbar-buttons">${btn('Request clarification','clarify',c.id,'quiet')}${pending?`${over?'':btn('Reject option','reject',c.id,'quiet')}${over?btn(c.status==='awaiting_approval'?'Commercial approval requested':'Request commercial approval','request-approval',c.id,'primary',c.status==='awaiting_approval'):btn(`Approve change · ${money(p.cost_delta)}`,'approve',c.id,'primary')}`:p?.status==='approved'?btn('Commit authorized change','commit-approved',c.id,'primary'):!p?btn('Compare vendor options','case-tab','vendors','primary'):btn('Review vendor options','case-tab','vendors','quiet')}</div></div>`;
+  }
+  function caseChange(c){
+    const p=c.current_proposal,bookings=arr(ops().bookings).filter(b=>b.case_id===c.id&&b.status!=='superseded');
+    if(!p)return `<h3>Requested help</h3><p class="scope-copy">${esc(c.request)}</p><div class="reason-box"><span class="eyebrow">WHY THIS ACTION</span><p>${esc(c.why)}</p></div><div class="empty bordered"><h3>No exact change package yet</h3><p>Choose an eligible vendor offer to prepare a cost and schedule comparison for approval.</p>${btn('Compare vendor options','case-tab','vendors','primary')}</div>`;
+    const committed=p.status==='committed';
+    const table=`<table class="compare-table"><thead><tr><th>What changes</th><th>Before change</th><th>${committed?'Approved plan':'Proposed plan'}</th></tr></thead><tbody><tr><th>Committed cost</th><td>${money(p.budget_before)}</td><td><strong>${money(p.budget_after)}</strong><small>+${money(p.cost_delta)} incremental</small></td></tr>${arr(p.schedule_changes).map(r=>`<tr><th>${esc(r.title||taskName(r.task_id))}</th><td>${esc(dt(r.before,true))}</td><td><strong>${esc(dt(r.after,true))}</strong>${r.before_resource!==r.after_resource?`<small>Resource: ${esc(vendors().find(v=>'vendor:'+v.id===r.after_resource)?.name||human(r.after_resource))}</small>`:''}</td></tr>`).join('')}${p.work_package?`<tr><th>Additional vendor work</th><td>Not in original scope</td><td><strong>${esc(dt(p.work_package.start||p.work_package.planned_start,true))}</strong><small>${esc(p.work_package.duration_hours??'—')} h · ${esc(vendors().find(v=>v.id===p.vendor_id)?.name||p.vendor_id)}</small></td></tr>`:''}</tbody></table>`;
+    return `<div class="proposal-meta compact-meta">${pill(p.status)}<strong>${esc(vendors().find(v=>v.id===p.vendor_id)?.name||p.vendor_id)}</strong><span>${esc(p.id)}</span></div>${p.stale_reason?`<div class="notice error">${esc(p.stale_reason)}</div>`:''}${p.required_approver_id==='commercial'&&p.status==='pending'?`<div class="demo-response"><div><strong>Commercial response preview</strong><small>Load a sample response from ${esc(personName('commercial'))}; PM authority stays unchanged.</small></div><div>${btn('Load approval response','commercial-approve',c.id,'quiet small-button')}${btn('Load rejection response','commercial-reject',c.id,'quiet small-button')}</div></div>`:''}${committed&&bookings.length?`<div class="approved-summary"><strong>${money(p.cost_delta)} change authorized</strong><small>${bookings.filter(b=>b.status!=='confirmed').length} counterpart confirmations still required</small></div>${bookings.map(b=>`<div class="booking-row"><div><strong>${esc(vendors().find(v=>v.id===(b.vendor_id||b.recipient_id))?.name||personName(b.recipient_id))}</strong><p>${esc(taskName(b.task_id))}<br>${esc(dt(b.start||b.planned_start,true))} · ${esc(human(b.status))}</p></div>${b.status!=='confirmed'?btn('Load confirmation','confirm-booking',b.id,'quiet small-button'):pill('Confirmed')}</div>`).join('')}<details class="technical-detail"><summary>View authorized cost and schedule comparison</summary>${table}</details>`:table}<details class="technical-detail"><summary>Scope, execution conditions and remaining approvals</summary><h3 class="section-title">Exact scope</h3><p class="scope-copy">${esc(c.request)}</p><ul class="body-list">${arr(p.conditions).map(x=>`<li>${esc(readable(x))}</li>`).join('')}</ul></details><p class="fineprint">${arr(p.conditions).filter(x=>/hold|conditional|permission/i.test(readable(x))).slice(0,1).map(readable).map(esc).join(' ')||'Proposed dates remain subject to the responsible counterparts and institutional acceptance.'}</p>`;
+  }
+  function performance(p){
+    if(!p||!Object.keys(p).length)return 'No recorded history';
+    if(p.completed_jobs!=null)return `${p.completed_jobs} completed jobs · ${p.on_time_pct??'—'}% on time · ${p.rework_jobs??'—'} rework jobs · ${p.rating??'—'}/5 from ${p.rating_count??p.reference_count??0} references`;
+    return readable(p);
+  }
+  function vendorOptions(c){
+    const offers=arr(c.options);
+    const inquiries=arr(c.inquiries||ops().inquiries).filter(x=>!x.case_id||x.case_id===c.id);
+    const pending=inquiries.filter(x=>['pending','sent','awaiting_reply'].includes(x.status));
+    return `<div class="section-intro"><div><h3>Recommended vendors</h3><p>Qualified for ${esc(human(c.vendor_capability))}. Responses, price and timing are considered together.</p></div>${btn('Vendor directory','nav','vendors','quiet small-button')}</div><div class="outreach-strip"><div>${pill(`${pending.length} inquiries pending`,'amber')}<small>Awaiting scoped availability and pricing</small></div><div>${pending.length?btn('Load sample replies','vendor-replies',c.id,'primary small-button'):btn('Request / refresh availability','inquire',c.id,'quiet small-button')}</div></div>${offers.length?offers.map((v,i)=>`<article class="offer ${!v.eligible?'ineligible':''}"><div class="row-top"><div><span class="eyebrow">${v.eligible?'RECOMMENDATION '+(i+1):v.status==='awaiting_reply'?'AWAITING SCOPED REPLY':'NOT ELIGIBLE'}</span><h3><button class="text-link vendor-name" data-action="vendor" data-id="${esc(v.vendor_id)}">${esc(displayName(v.vendor_name))}</button></h3></div>${pill(v.status)}</div><div class="offer-metrics"><div><small>Earliest availability</small><strong>${esc(dt(v.earliest_start,true))}</strong></div><div><small>Quote total</small><strong>${money(v.total_price)}</strong></div><div><small>Work duration</small><strong>${v.duration_hours!=null?esc(v.duration_hours)+' h':'Awaiting reply'}</strong></div></div><p class="small"><strong>Performance:</strong> ${esc(performance(v.performance))}</p><p class="small muted">${esc(arr(v.ranking_reasons).map(readable).join(' · '))}</p>${arr(v.exclusion_reasons).length?`<p class="excluded">${esc(arr(v.exclusion_reasons).join(' · '))}</p>`:''}<div class="offer-bottom"><small>${v.expires_at?'Quote valid until '+esc(dt(v.expires_at,true)):'No valid quote yet'}</small>${btn(c.current_proposal?.vendor_id===v.vendor_id?'Prepare updated proposal':'Prepare change proposal','choose-vendor',`${c.id}|${v.vendor_id}`,'quiet small-button',!v.eligible||!v.quote_id||['pending','expired','declined','unavailable','superseded'].includes(v.status))}</div></article>`).join(''):empty('Availability inquiries are being prepared','Request availability from the matching vendor directory.')}`;
+  }
+  function casePeople(c){
+    const p=c.current_proposal;
+    return `<div class="reason-box approval-policy"><span class="eyebrow">APPROVAL POLICY</span><h3>POLICY_DEMO_01</h3><p>${esc(personName('pm'))} may approve incremental project changes up to <strong>${money(project().pm_approval_limit)}</strong>. Changes above that limit go to ${esc(personName('commercial'))}.</p>${p?`<p><strong>This proposal:</strong> ${esc(personName(p.required_approver_id))} must authorize the ${money(p.cost_delta)} change against the recorded scope and revision.</p>`:''}<small>Commercial approval does not grant engineering acceptance, a customer outage window or utility permission to operate.</small></div><h3 class="section-title">People involved</h3>${arr(c.stakeholder_ids).map(id=>{const s=person(id);return `<div class="person-row"><span class="sender-avatar">${esc(personName(id).slice(0,1))}</span><div><strong>${esc(personName(id))}</strong><p>${esc(s?.role||id)} · ${esc(displayName(s?.organization||''))}</p><small>${esc(s?.contact||'Contact not recorded')}</small></div></div>`;}).join('')}<h3 class="section-title">Institutional gates</h3>${arr(c.required_gates).map(id=>{const g=state().gates?.[id]||arr(state().gates).find(x=>x.id===id);return `<div class="pair"><span>${esc(g?.label||human(id))}</span>${pill(g?.status||'Unknown')}</div>`;}).join('')||'<p class="muted">No additional gates specified on this case. Project gates still apply.</p>'}`;
+  }
+  function caseEvidence(c){
+    const p=c.current_proposal;
+    return `<h3>Source-linked decision record</h3><p class="muted small">Reading summaries do not overwrite original messages or constitute approval.</p>${arr(c.source_message_ids).map(id=>{const m=messages().find(x=>x.id===id);return `<div class="pair"><span>${esc(m?.subject||id)}</span>${btn('Read original','message',id,'quiet small-button')}</div>`;}).join('')}<h3 class="section-title">Version and scope</h3><div class="pair"><span>Current project revision</span><strong>${esc(project().revision)}</strong></div><div class="pair"><span>Current design revision</span><strong>${esc(project().design_revision)}</strong></div>${p?`<div class="pair"><span>Proposal based on revision</span><strong>${esc(p.based_on_revision)}</strong></div>`:''}<h3 class="section-title">Affected activities</h3><ul class="body-list">${arr(c.affected_task_ids).map(id=>`<li>${esc(taskName(id))}</li>`).join('')}</ul>${btn('Full evidence library','nav','evidence','quiet')}`;
+  }
+  function inbox(){
+    const ms=messages(),m=ms.find(x=>x.id===ui.messageId)||ms[0];
+    return `${crumb('Inbox')}${heading('Site inbox','Original reports, images and source-linked reading summaries.',btn('+ Add stakeholder update','nav','compose','primary'))}<div class="inbox-grid fill"><section class="panel message-list">${panelHead('Stakeholder updates',pill(ms.length+' reports'))}<div class="panel-scroll">${pageRows(ms,'inbox',7).map(messageRow).join('')||empty('No stakeholder reports')}</div>${pager('inbox',ms.length,7)}</section><section class="panel"><div class="panel-scroll panel-body">${source(m,true)}${m?.case_id?`<div class="message-case-link">${btn('Open linked decision →','case',m.case_id,'primary')}</div>`:''}${m?.assertions?`<details class="technical-detail"><summary>Source-linked observations</summary>${arr(m.assertions).map(a=>`<div class="observation"><strong>${esc(a.claim||a.label||a.type||'Reported observation')}</strong><p>${esc(a.quote||a.source_quote||arr(a.source_quotes).join(' · ')||a.text||'')}</p><small>${esc(a.validation_status||a.status||'Reported; not independently validated')}</small></div>`).join('')}</details>`:''}</div></section></div>`;
+  }
+  function compose(){
+    return `${crumb('New report')}${heading('Add a stakeholder update','Preserve the original field message and images, then use ChatGPT to summarize and triage it.',btn('Back to inbox','nav','inbox','quiet'))}<section class="panel compose-panel fill"><form id="message-form" class="panel-scroll panel-body"><div class="form-grid"><label>From<select name="sender_id" required>${people().map(p=>`<option value="${esc(p.id)}">${esc(p.name)} · ${esc(p.role)}</option>`).join('')}</select></label><label>Link to a current decision<select name="case_id"><option value="">New / unclassified report</option>${cases().map(c=>`<option value="${esc(c.id)}">${esc(c.title)}</option>`).join('')}</select></label></div><label>Subject<input name="subject" required maxlength="200" placeholder="Brief description of the issue"></label><label>Original message<textarea name="raw_text" required rows="7" maxlength="16000" placeholder="Paste the electrician, rigger, EPC partner or utility coordinator’s original report…"></textarea></label><label>Original images<input name="attachments" type="file" accept="image/png,image/jpeg,image/webp" multiple><small>PNG, JPEG or WebP, up to 4 MiB each. Files remain attached to the original report.</small></label><div class="form-footer"><p class="muted small">New reports are unverified observations. They do not close gates or authorize spending.</p><button class="btn primary" type="submit" ${ui.busy?'disabled':''}>Save original report</button></div></form></section>`;
+  }
+  function calendar(){
+    const all=calendarRows(),now=new Date(project().now),today=dayKey(project().now);
+    const weekEnd=new Date(now.getTime()+7*86400000);
+    let rows=all.filter(e=>ui.calendarFilter==='all'||(ui.calendarFilter==='today'?dayKey(e.start||e.at)===today:ui.calendarFilter==='week'?new Date(e.start||e.at)>=now&&new Date(e.start||e.at)<=weekEnd:ui.calendarFilter==='confirmed'?e.status==='confirmed':new Date(e.start||e.at)>=now));
+    return `${crumb('Calendar')}${heading('Project calendar',`${timezone()} · project clock ${dt(project().now,true)}`,btn('Back to site','nav','site','quiet'))}<div class="calendar-legend">${['confirmed','planned','offered','deadline'].map(x=>pill(x)).join('')}<span>Only counterpart-confirmed bookings are labelled confirmed.</span></div><section class="panel fill">${panelHead('Checkpoints & activity windows',`<div class="segmented">${[['today','Today'],['week','Next 7 days'],['upcoming','Upcoming'],['confirmed','Confirmed'],['all','All']].map(([k,v])=>`<button data-action="calendar-filter" data-id="${k}" class="${ui.calendarFilter===k?'active':''}">${v}</button>`).join('')}</div>`)}<div class="panel-scroll">${pageRows(rows,'calendar',7).map(timeRow).join('')||empty('No checkpoints in this view','Choose another time range to inspect planned work, offers and response deadlines.')}</div>${pager('calendar',rows.length,7)}</section>`;
+  }
+  function directory(){
+    const vs=vendors(),caps=[...new Set(vs.flatMap(v=>arr(v.capabilities||v.activities)))].sort();
+    const query=ui.vendorQuery.toLowerCase();
+    const filtered=vs.filter(v=>(ui.vendorFilter==='all'||arr(v.capabilities||v.activities).includes(ui.vendorFilter))&&(!query||`${v.name} ${readable(v.capabilities)} ${v.description||''}`.toLowerCase().includes(query)));
+    return `${heading('Vendor directory','Compare capability, qualifications and past performance before committing work.',btn('About these records','nav','about','quiet small-button'),'DELIVERY NETWORK')}<div class="directory-filters"><label class="search-label"><span>Search vendors</span><input id="vendor-search" type="search" value="${esc(ui.vendorQuery)}" placeholder="Search name or activity"></label><label><span>Activity</span><select id="vendor-filter"><option value="all">All activities</option>${caps.map(c=>`<option value="${esc(c)}" ${ui.vendorFilter===c?'selected':''}>${esc(human(c))}</option>`).join('')}</select></label></div><section class="panel fill"><div class="vendor-grid panel-scroll">${pageRows(filtered,'vendors',6).map(v=>`<button class="vendor-card" data-action="vendor" data-id="${esc(v.id)}"><div class="row-top"><span class="vendor-monogram">${esc((v.name||'V').split(' ').slice(0,2).map(s=>s[0]).join(''))}</span>${pill(v.status||'Profile')}</div><h3>${esc(v.name)}</h3><p>${esc(arr(v.capabilities||v.activities).map(human).join(' · '))}</p><p class="small muted clamp2">${esc(v.description||v.profile||readable(v.service_area||v.service_regions||v.service_states)||'')}</p><div class="vendor-history"><span>Recorded performance</span><strong>${esc(performance(v.performance))}</strong></div><span class="text-link">View profile →</span></button>`).join('')||empty('No matching vendors','Try another activity or search term.')}</div>${pager('vendors',filtered.length,6)}</section>`;
+  }
+  function vendorProfile(){
+    const v=vendors().find(x=>x.id===ui.vendorId);
+    if(!v)return empty('Vendor profile not found');
+    const jobs=arr(v.history||v.past_projects||v.performance_history);
+    return `${heading(v.name,arr(v.capabilities||v.activities).map(human).join(' · '),btn('Back to directory','nav','vendors','quiet'),'VENDOR PROFILE')}<div class="profile-grid fill"><section class="panel"><div class="panel-scroll panel-body"><h2>Company & qualifications</h2><p class="section-copy">${esc(v.description||v.profile||'Profile details recorded below.')}</p>${[['Service area',v.service_area||v.service_regions||v.service_states],['Contact',v.contact||v.email],['Qualifications',v.qualifications],['Insurance',v.insurance],['Capabilities',v.capabilities||v.activities]].filter(([,val])=>val).map(([key,val])=>`<div class="profile-fact"><span>${key}</span><strong>${esc(readable(val))}</strong></div>`).join('')}<div class="reason-box"><span class="eyebrow">REPUTATION PROVENANCE</span><p>${esc(readable(v.reputation||v.reputation_source||v.performance?.provenance||v.provenance||'Synthetic performance records for this demo; not independently verified vendor reviews.'))}</p></div></div></section><section class="panel"><div class="panel-scroll panel-body"><h2>Past performance</h2><p class="section-copy">${esc(performance(v.performance))}</p>${jobs.length?jobs.map(j=>`<article class="history-card"><h3>${esc(j.project||j.title||j.project_name||'Completed engagement')}</h3><p>${esc(readable(j))}</p></article>`).join(''):'<p class="muted">No individual project history supplied. The available aggregate and sample size above should be considered when comparing vendors.</p>'}<h3 class="section-title">Availability is case-specific</h3><p class="muted">Directory history does not establish availability. An offer must match this project, scope, dates and current quote validity.</p></div></section></div>`;
+  }
+  function budget(){
+    const f=finance();
+    return `${crumb('Budget')}${heading('Budget & expenses','Baseline, authorized commitments and posted costs are different measures.',btn('Back to site','nav','site','quiet'))}${budgetTiles()}<section class="panel fill">${panelHead('Project cost ledger',pill('USD'))}<div class="panel-scroll"><table class="ledger-table"><thead><tr><th>Cost category</th><th>Baseline</th><th>Committed</th><th>Actual</th></tr></thead><tbody>${arr(f.lines).map(l=>`<tr><th>${esc(l.label||l.category)}</th><td>${money(l.baseline)}</td><td>${money(l.committed)}</td><td>${money(l.actual)}</td></tr>`).join('')}</tbody></table><p class="fineprint panel-body">${esc(f.note)}</p></div></section>`;
+  }
+  function timeline(){
+    const phases=arr(ui.data.phases?.phases),p=phases.find(x=>x.id===ui.phaseId)||phases.find(x=>x.status==='current')||phases[0];
+    return `${crumb('Timeline')}${heading('Post-signing project timeline','Phases can run in parallel; new evidence can reopen a completed review.',btn('Back to site','nav','site','quiet'))}${phasesRibbon()}<section class="panel fill">${panelHead(p?.title||'Phase',pill(p?.status))}<div class="panel-scroll panel-body"><p>${esc(p?.description)}</p><div class="phase-detail-grid"><div><h3 class="section-title">Exit criteria</h3><ul class="body-list">${arr(p?.exit_criteria).map(x=>`<li>${esc(x)}</li>`).join('')}</ul><h3 class="section-title">Current assessment</h3><p>${esc(p?.status_reason)}</p></div><div><h3 class="section-title">Planned span</h3><p>${esc(dt(p?.milestones?.planned_start,true))} → ${esc(dt(p?.milestones?.planned_finish,true))}</p><h3 class="section-title">Responsible people</h3><p>${esc(arr(p?.owners).map(x=>`${x.name} · ${x.role}`).join('; '))}</p></div></div><h3 class="section-title">Activities</h3>${arr(p?.task_ids).map(id=>{const t=arr(state().tasks).find(x=>x.id===id);return `<div class="pair"><div><strong>${esc(t?.title||id)}</strong><p class="small muted">${esc(dt(t?.planned_start,true))} · ${esc(personName(t?.owner_id))}</p></div>${pill(t?.status)}</div>`;}).join('')}${arr(p?.blockers).length?`<h3 class="section-title">Open constraints</h3>${arr(p.blockers).map(b=>`<div class="reason-box"><strong>${esc(b.title)}</strong><p>${esc(b.reason)}</p></div>`).join('')}` :''}</div></section>`;
+  }
+  function constraint(){
+    const b=arr(ui.data.dashboard?.bottlenecks).find(x=>x.id===ui.constraintId);
+    if(!b)return empty('Constraint no longer active');
+    return `${crumb('Project bottleneck')}${heading(b.title,b.detail,pill(b.priority_label))}<section class="panel fill"><div class="panel-scroll panel-body"><div class="reason-box"><span class="eyebrow">RECOMMENDED NEXT ACTION</span><p>${esc(b.next_step)}</p></div><div class="phase-detail-grid"><div><h3 class="section-title">Who can resolve this</h3><p>${esc(personName(b.resolver_id))} · ${esc(person(b.resolver_id)?.role)}</p><h3 class="section-title">Authority</h3><p>${esc(b.authority)}</p></div><div><h3 class="section-title">Why this priority</h3><p>${esc(b.ranking_reason)}</p><h3 class="section-title">What this unlocks</h3><ul class="body-list">${arr(b.unlocks).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div></div></div><div class="panel-bottom">${btn('Back to site','nav','site','quiet')}${b.action?btn('Apply next action','engine-action',b.id,'primary'):pill('Prerequisites remain')}</div></section>`;
+  }
+  function details(){
+    return `${crumb('Project details')}${heading(project().name,'Project scope, commercial assumptions and delivery ownership.',btn('Back to site','nav','site','quiet'))}<section class="panel fill"><div class="panel-scroll panel-body"><div class="phase-detail-grid"><div>${[['Project ID',project().id],['Customer',project().customer],['Site',project().site],['Utility',project().utility],['Design revision',project().design_revision]].map(([k,v])=>`<div class="profile-fact"><span>${k}</span><strong>${esc(v)}</strong></div>`).join('')}</div><div><h3>People & responsibilities</h3>${people().map(p=>`<div class="pair"><strong>${esc(p.name)}</strong><span>${esc(p.role)}</span></div>`).join('')}</div></div><h3 class="section-title">Project assumptions</h3><ul class="body-list">${arr(project().assumptions).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div></section>`;
+  }
+  function dialog(){
+    const d=ui.dialog;
+    if(d.type==='attachment'){
+      const a=messages().flatMap(m=>arr(m.attachments)).find(x=>x.id===d.id);
+      return `<div class="modal-shade" data-action="close-dialog"><section class="modal image-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header><h2 id="modal-title">${esc(a?.name||a?.filename||'Original attachment')}</h2>${btn('Close','close-dialog','','quiet')}</header><img src="/api/attachments/${encodeURIComponent(d.id)}${project().demo_project_id?'?project_id='+encodeURIComponent(project().demo_project_id):''}" alt="${esc(a?.name||'Original stakeholder image')}"><p>Original stakeholder attachment · ${esc(a?.mime_type||'image')}</p></section></div>`;
+    }
+    if(d.type==='calendar'||d.type==='resource'){
+      const e=(d.type==='resource'?resourceCalendarRows():calendarRows()).find(x=>x.id===d.id);
+      return `<div class="modal-shade"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header><h2 id="modal-title">${esc(e?.title||'Calendar checkpoint')}</h2>${btn('Close','close-dialog','','quiet')}</header><div class="modal-body">${pill(e?.status)}<h3>${esc(dt(e?.start||e?.at,true))}</h3><p>${esc(e?.detail||'Planned project activity. Confirmations and acceptance remain separate.')}</p>${e?.eligible===false?`<p class="excluded">Not currently eligible: ${esc(arr(e.exclusion_reasons).join(' · ')||'Scope and availability need revalidation.')}</p>`:''}${e?.owner_id||e?.owner?`<p>Owner: ${esc(e.owner_id?personName(e.owner_id):person(e.owner)?.name||vendors().find(v=>v.id===e.owner)?.name||e.owner)}</p>`:''}${e?.case_id?btn('Review linked decision','case',e.case_id,'primary'):''}</div></section></div>`;
+    }
+    return `<div class="modal-shade"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header><h2 id="modal-title">${d.type==='reject'?'Reject this proposed option':'Request clarification'}</h2>${btn('Cancel','close-dialog','','quiet')}</header><form id="decision-note-form"><div class="modal-body"><p>The original issue remains open. Record the reason or information needed for the next revision.</p><label>${d.type==='reject'?'Reason for rejection':'Clarification request'}<textarea name="text" required rows="5" maxlength="4000" autofocus></textarea></label></div><div class="panel-bottom"><button class="btn primary" type="submit" ${ui.busy?'disabled':''}>${d.type==='reject'?'Record rejection':'Record clarification request'}</button></div></form></section></div>`;
+  }
+  function sourceLink(source) {
+    const raw=source?.url||source?.href;
+    if(!raw)return '';
     try {
-      const payload = { ...body, expected_version: ui.data.session_version };
-      useEnvelope(await api(path, payload));
-      ui.notice = { type: 'success', title };
-    } catch (error) { ui.notice = { type: 'error', title: 'The operation was not completed', message: error.message }; }
-    finally { ui.busy = false; render(); }
+      const url=new URL(raw);
+      if(!['http:','https:'].includes(url.protocol))return '';
+      return `<a class="source-reference" href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">${esc(source.title||source.name||url.hostname)} ↗</a>`;
+    } catch { return ''; }
   }
-  async function startJob(kind, mode, suite = 'scenarios') {
-    if (ui.busy) return;
-    ui.busy = true; ui.notice = null;
-    const evaluate = kind === 'evaluate';
-    ui.job = { started: Date.now(), title: evaluate ? `Running ${suite === 'challenges' ? 'independent challenge checks' : suite === 'projects' ? 'all demo projects through the baseline' : mode === 'live' ? 'live LLM evaluation of the selected case' : 'fixed-rule baseline suite'}` : `Generating a ${mode === 'live' ? 'live LLM' : 'fixed-rule baseline'} recommendation`, description: mode === 'live' ? (evaluate ? 'Live evaluation can take several minutes. Fresh decisions are being tested through the product’s real tools.' : 'Fresh ChatGPT inference through the local authenticated runtime. This can take a few minutes.') : 'Checking current records through the deterministic product interfaces.' };
+  function evidence() {
+    const records=arr(state().evidence),current=records.find(e=>e.id===ui.evidenceId)||records[0];
+    const sources=arr(ui.data.sources);
+    const ids=arr(current?.source_ids||project().source_ids);
+    const linked=sources.filter(source=>ids.includes(source.id));
+    return `${crumb('Evidence')}${heading('Project evidence','Original records, scope and supporting references.',btn('Back to site','nav','site','quiet'))}<div class="inbox-grid fill"><section class="panel">${panelHead('Evidence records',pill(records.length+' records'))}<div class="panel-scroll">${pageRows(records,'evidence',7).map(e=>`<button class="evidence-record ${current?.id===e.id?'selected':''}" data-action="evidence-record" data-id="${esc(e.id)}"><strong>${esc(e.title||e.id)}</strong><small>${esc(human(e.kind||'Project record'))} · ${esc(dt(e.received_at||e.effective_at,true))}</small></button>`).join('')||empty('No evidence recorded')}</div>${pager('evidence',records.length,7)}</section><section class="panel"><div class="panel-scroll panel-body">${current?`<div class="row-top"><h2>${esc(current.title||current.id)}</h2>${pill(human(current.kind||'Record'))}</div><div class="evidence-metadata"><span>Record ${esc(current.id)}</span><span>From ${esc(personName(current.issuer_id))}</span><span>Design ${esc(current.design_revision||'Not specified')}</span></div><blockquote class="source-text">${esc(readable(current.body||current.text||current.content||'No body recorded.'))}</blockquote>${current.verification_scope?`<p class="fineprint">${esc(current.verification_scope)}</p>`:''}${messages().some(m=>m.id===current.id)?btn('Open original report and attachments','message',current.id,'quiet'):''}<h3 class="section-title">Supporting public references</h3><div class="source-references">${linked.map(sourceLink).join('')||'<p class="muted small">No public reference is directly indexed for this record.</p>'}</div>`:empty('Select an evidence record')}</div></section></div>`;
+  }
+  function about() {
+    return `${heading('About this workspace','A project management demonstration grounded in deployment workflows.',btn('Back to portfolio','nav','portfolio','quiet'))}<section class="panel fill"><div class="panel-scroll panel-body provenance-content"><h2>Data and provenance</h2><p>The projects, stakeholders, vendors, prices, schedules, qualification records and performance samples in this workspace are fictional demonstration records. Vendor ratings are invented internal examples, not independent public reviews or verified real-world credentials.</p><h3>Contractor portal</h3><p>The role picker provides local preview access, not production identity verification. The <a href="/contractor.html" target="_blank" rel="noopener">contractor portal</a> submits reports into this shared workspace. These are the external delivery partners on each project, not EQORE-owned crews. Reports are recorded as claims for PM review; submitting a report does not authorize a change.</p><h3>Actions and responses</h3><p>Availability inquiries and clarification requests are recorded locally. “Load sample replies,” approval-response previews and confirmation controls exercise the workflow without contacting a real vendor, granting a real permission or placing an order.</p><h3>Original reports and AI summaries</h3><p>Uploaded text and images are retained as source records. When ChatGPT is connected, reading summaries are generated from those originals. Summaries and reported observations do not authorize spending, certify engineering work or establish utility acceptance.</p><h3>Decision authority</h3><p><strong>POLICY_DEMO_01</strong> is the explicit delegation used by these projects. The named PM may approve changes within the recorded limit; larger changes require the commercial approver. Bookings, technical verification and institutional permission remain separate.</p><h3>Workflow references</h3><p>Public references inform the workflow categories. Each project’s actual scope, applicability and conditions still require responsible review.</p><div class="source-references">${arr(ui.data.sources).map(sourceLink).join('')}</div></div></section>`;
+  }
+  function render(){
+    if(!ui.data)return;
+    const pages={
+      portfolio,site,decision,inbox,compose,calendar,vendors:directory,'vendor-profile':vendorProfile,budget,timeline,constraint,details,evidence,about,subcontractors,procurement,readiness
+    }
+    ;
+    app.innerHTML=shell((pages[ui.view]||portfolio)());
+    if(ui.dialog)requestAnimationFrame(()=>app.querySelector('.modal [autofocus],.modal button')?.focus());
+  }
+  async function api(path,body){
+    const response=await fetch(path,body===undefined?{
+      cache:'no-store'
+    }
+    :{
+      method:'POST',headers:{
+        'Content-Type':'application/json'
+      }
+      ,body:JSON.stringify(body)
+    }
+    );
+    let data;
+    try{
+      data=await response.json();
+    }
+    catch{
+      throw new Error(`Unreadable server response (${response.status}).`);
+    }
+    if(!response.ok){
+      const e=new Error(data.error||`Request failed (${response.status})`);
+      e.status=response.status;
+      throw e;
+    }
+    return data;
+  }
+  async function refresh(){
+    const selector=project().demo_project_id;
+    const data=await api('/api/bootstrap'+(selector?'?project_id='+encodeURIComponent(selector):''));
+    if(!data.state)throw new Error('Project records were not returned.');
+    ui.data=data;
+    ui.updates=null;
+  }
+  async function mutate(path,payload,title,onSuccess){
+    if(ui.busy)return;
+    ui.busy=true;
+    ui.notice=null;
+    const version=path==='/api/projects/select' ? (ui.data.active_session_version ?? ui.data.session_version) : ui.data.session_version;
     render();
-    const ticker = window.setInterval(() => { const elapsed = document.getElementById('job-elapsed'); if (elapsed && ui.job) elapsed.textContent = `${Math.floor((Date.now() - ui.job.started) / 1000)}s elapsed`; }, 1000);
-    try {
-      const jobPayload = evaluate && suite !== 'scenarios' ? { mode, suite } : evaluate && mode === 'live' ? { mode, scenario_ids: [ui.scenarioId || ui.data.scenarios?.[0]?.id] } : { mode };
-      const result = await api(`/api/${kind}`, jobPayload);
-      if (!result.job_id) throw new Error('The server did not provide a job identifier.');
-      let job;
-      do {
-        await new Promise(resolve => window.setTimeout(resolve, 1300));
-        job = await api(`/api/jobs/${encodeURIComponent(result.job_id)}`);
-        if (job.status === 'failed') throw new Error(job.error || 'The background operation failed. No fallback result was substituted.');
-        if (job.status !== 'running' && job.status !== 'queued' && job.status !== 'completed') throw new Error(`Unknown job status: ${job.status}`);
-      } while (job.status !== 'completed');
-      if (evaluate) {
-        if (suite === 'challenges') ui.challengeReport = job.result.id; else ui.report = job.result;
-        useEnvelope(await api('/api/bootstrap'));
-        ui.view = suite === 'challenges' ? 'challenges' : 'evaluation';
-      } else useEnvelope(job.result);
-      ui.notice = { type: 'success', title: evaluate ? 'Evaluation finished; inspect the case results below' : `${mode === 'live' ? 'Live LLM' : 'Fixed-rule baseline'} recommendation generated` };
-    } catch (error) { ui.notice = { type: 'error', title: `${mode === 'live' ? 'Live LLM' : 'Baseline'} ${evaluate ? 'evaluation' : 'reasoning'} failed`, message: error.message }; }
-    finally { window.clearInterval(ticker); ui.busy = false; ui.job = null; render(); }
+    try{
+      const data=await api(path,{
+        ...payload,expected_version:version
+      }
+      );
+      if(data.state){ui.data=data;ui.updates=null;}
+      else await refresh();
+      ui.notice={
+        text:title
+      }
+      ;
+      if(onSuccess)onSuccess(data);
+    }
+    catch(e){
+      if(e.status===409)await refresh().catch(()=>{
+      }
+      );
+      ui.notice={
+        text:e.message,error:true
+      }
+      ;
+    }
+    finally{
+      ui.busy=false;
+      render();
+    }
   }
-  app.addEventListener('click', event => {
-    const target = event.target.closest('[data-action]');
-    if (!target || target.disabled) return;
-    const action = target.dataset.action, id = target.dataset.id;
-    if (action === 'nav') { ui.view = id; render(); window.scrollTo({ top: 0 }); return; }
-    if (action === 'dismiss') { ui.notice = null; render(); return; }
-    if (action === 'phase') { ui.selectedPhase = id; ui.view = 'phases'; render(); return; }
-    if (action === 'task') { ui.selectedTask = ui.selectedTask === id ? null : id; render(); return; }
-    if (action === 'knowledge-tab') { ui.knowledgeTab = id; render(); return; }
-    if (action === 'evidence') { ui.view = 'knowledge'; ui.knowledgeTab = 'evidence'; ui.highlightedEvidence = id; render(); const card = [...app.querySelectorAll('[data-evidence-id]')].find(el => el.dataset.evidenceId === id); card?.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
-    if (action === 'challenge-report') { ui.challengeReport = id; render(); return; }
-    if (action === 'report') { ui.report = list(ui.data.evaluations).find(r => r.id === id); render(); return; }
-    if (action === 'retry') { load(); return; }
-    if (ui.busy) return;
-    if (action === 'reset') { ui.selectedTask = null; const projectId = state().project?.demo_project_id; mutate(projectId ? '/api/projects/reset' : '/api/reset', projectId ? { project_id: projectId } : { scenario_id: state().project?.scenario_id || ui.scenarioId }, projectId ? 'Current project reset; other projects are preserved' : 'Current test case reset'); return; }
-    if (action === 'select-project') { ui.selectedTask = null; ui.view = 'workspace'; mutate('/api/projects/select', { project_id: id }, 'Project opened at its saved state'); window.scrollTo({ top: 0 }); return; }
-    if (action === 'open-case') { ui.selectedTask = null; ui.view = 'workspace'; mutate('/api/reset', { scenario_id: ui.scenarioId || ui.data.scenarios?.[0]?.id }, 'Test case opened; demo project progress is preserved'); window.scrollTo({ top: 0 }); return; }
-    if (action === 'bottleneck-action') { const b = list(ui.data.dashboard?.bottlenecks).find(b => b.id === id); if (b?.action) mutate('/api/action', { action: b.action }, 'Bottleneck action processed through project controls'); return; }
-    if (action === 'clock') { mutate('/api/clock', {}, 'Simulation clock advanced; review newly due follow-ups'); return; }
-    if (action === 'event') { mutate('/api/event', {}, 'Simulation event processed; current project records refreshed'); return; }
-    if (action === 'execute') { if (ui.data.recommendation?.action) mutate('/api/action', { action: ui.data.recommendation.action }, 'Proposed action processed through the project controls'); return; }
-    if (action === 'respond') { mutate('/api/respond', { request_id: id }, 'Simulated counterpart response processed'); return; }
-    if (action.startsWith('decide-')) { startJob('decide', action.slice(7)); return; }
-    if (action === 'evaluate-projects') { startJob('evaluate', 'baseline', 'projects'); return; }
-    if (action === 'evaluate-challenges') { startJob('evaluate', 'baseline', 'challenges'); return; }
-    if (action.startsWith('evaluate-')) { startJob('evaluate', action.slice(9)); return; }
-    const proposal = list(state().proposals).find(p => p.id === id);
-    if ((action === 'approve' || action === 'reject') && proposal) { mutate('/api/action', { action: { type: 'resolve_decision', proposal_id: proposal.id, status: action === 'approve' ? 'approved' : 'rejected' }, actor_id: proposal.required_approver_id }, `Simulated approver decision recorded: ${action === 'approve' ? 'approved' : 'rejected'}`); return; }
-    if (action === 'commit' && proposal) { mutate('/api/action', { action: { type: 'commit_plan', proposal_id: proposal.id } }, 'Approved plan committed after authority and freshness checks'); }
-  });
-  app.addEventListener('change', event => {
-    if (event.target.id === 'scenario-select') { ui.scenarioId = event.target.value; render(); }
-    if (event.target.id === 'project-select' && event.target.value) { ui.selectedTask = null; ui.view = 'workspace'; mutate('/api/projects/select', { project_id: event.target.value }, 'Project opened at its saved state'); }
-  });
-  window.addEventListener('resize', drawEdges);
-  async function load() {
-    try { useEnvelope(await api('/api/bootstrap')); ui.notice = null; render(); }
-    catch (error) { app.innerHTML = `<main class="loading-shell"><div class="brand-mark">e</div><h1>The workspace could not connect</h1><p>${esc(error.message)}</p><p>Start the local server, then retry.</p><button class="button" data-action="retry">Retry connection</button></main>`; }
+  function operation(type,fields={
   }
-  load();
-})();
+  ,title='Project records updated'){
+    return mutate('/api/operations',{
+      operation:{
+        type,...fields
+      }
+    }
+    ,title);
+  }
+  async function summarize(id){
+    if(ui.busy)return;
+    ui.busy=true;
+    ui.job='Summarizing and triaging the original report';
+    ui.notice=null;
+    render();
+    try{
+      const r=await api('/api/message-summary',{
+        message_id:id,expected_version:ui.data.session_version
+      }
+      );
+      if(!r.job_id)throw new Error('The server did not return a summary job.');
+      let j;
+      do{
+        await new Promise(resolve=>setTimeout(resolve,1300));
+        j=await api('/api/jobs/'+encodeURIComponent(r.job_id));
+        if(j.status==='failed')throw new Error(j.error||'ChatGPT summary failed. No substitute summary was generated.');
+      }
+      while(['running','queued'].includes(j.status));
+      if(j.status!=='completed')throw new Error('Unknown summary job status.');
+      await refresh();
+      ui.notice={
+        text:'Fresh ChatGPT reading summary saved with the original report.'
+      }
+      ;
+    }
+    catch(e){
+      ui.notice={
+        text:e.message,error:true
+      }
+      ;
+    }
+    finally{
+      ui.busy=false;
+      ui.job=null;
+      render();
+    }
+  }
+  function navigate(view){
+    ui.view=view;
+    ui.dialog=null;
+    if(view==='site')ui.tab='cases';
+    render();
+    document.getElementById('main')?.focus({
+      preventScroll:true
+    }
+    );
+  }
+  app.addEventListener('click',async event=>{
+    const t=event.target.closest('[data-action]');
+    if(!t||t.disabled)return;
+    const a=t.dataset.action,id=t.dataset.id;
+    if(a==='close-dialog'&&event.target.closest('.modal')&&t.classList.contains('modal-shade'))return;
+    if(a==='dismiss'){
+      ui.notice=null;
+      render();
+      return;
+    }
+    if(a==='nav'){
+      navigate(id);
+      return;
+    }
+    if(a==='close-dialog'){
+      ui.dialog=null;
+      render();
+      return;
+    }
+    if(a==='map-region') { ui.mapRegion=id; render(); return; }
+    if(a==='portfolio-filter') { ui.portfolioFilter=id; render(); return; }
+    if(a==='resource-tab') { ui.resourceTab=id; render(); return; }
+    if(a==='subcontractor') { ui.subcontractId=id; render(); return; }
+    if(a==='resource-event') { ui.dialog={type:'resource',id}; render(); return; }
+    if(a==='week') { ui.weekOffset=id==='reset'?0:ui.weekOffset+Number(id); render(); return; }
+    if(a==='cluster'){
+      ui.cluster=!ui.cluster;
+      render();
+      return;
+    }
+    if(a==='case'){
+      ui.caseId=id;
+      ui.view='decision';
+      ui.tab='change';
+      ui.dialog=null;
+      ui.messageId=null;
+      render();
+      return;
+    }
+    if(a==='case-tab'||a==='queue-tab'){
+      ui.tab=id;
+      render();
+      return;
+    }
+    if(a==='message'){
+      ui.messageId=id;
+      ui.view='inbox';
+      render();
+      return;
+    }
+    if(a==='case-message'){
+      ui.messageId=id;
+      render();
+      return;
+    }
+    if(a==='vendor'){
+      ui.vendorId=id;
+      ui.view='vendor-profile';
+      render();
+      return;
+    }
+    if(a==='phase'){
+      ui.phaseId=id;
+      ui.view='timeline';
+      render();
+      return;
+    }
+    if(a==='constraint'){
+      ui.constraintId=id;
+      ui.view='constraint';
+      render();
+      return;
+    }
+    if(a==='calendar-event'){
+      ui.dialog={
+        type:'calendar',id
+      }
+      ;
+      render();
+      return;
+    }
+    if(a==='attachment'){
+      ui.dialog={
+        type:'attachment',id
+      }
+      ;
+      render();
+      return;
+    }
+    if(a==='calendar-filter'){
+      ui.calendarFilter=id;
+      ui.pages.calendar=0;
+      render();
+      return;
+    }
+    if(a==='page'){
+      const index=id.lastIndexOf(':'),k=id.slice(0,index),delta=Number(id.slice(index+1));
+      ui.pages[k]=Math.max(0,(ui.pages[k]||0)+delta);
+      render();
+      return;
+    }
+    if(a==='clarify'||a==='reject'){
+      ui.dialog={
+        type:a==='clarify'?'clarify':'reject',id
+      }
+      ;
+      render();
+      return;
+    }
+    if(a==='evidence-record'){
+      ui.evidenceId=id; ui.view='evidence'; render(); return;
+    }
+    if(ui.busy)return;
+    if(a==='refresh'){
+      ui.busy=true;
+      render();
+      try{
+        await refresh();
+        ui.notice={
+          text:'Current records refreshed.'
+        }
+        ;
+      }
+      catch(e){
+        ui.notice={
+          text:e.message,error:true
+        }
+        ;
+      }
+      finally{
+        ui.busy=false;
+        render();
+      }
+      return;
+    }
+    if(a==='project'){
+      ui.view='site';
+      ui.tab='cases';
+      ui.caseId=null;
+      ui.messageId=null;
+      ui.subcontractId=null;
+      ui.weekOffset=0;
+      ui.pages={
+      }
+      ;
+      await mutate('/api/projects/select',{
+        project_id:id
+      }
+      ,'Project opened at its saved state.');
+      return;
+    }
+    if(a==='summarize'){
+      summarize(id);
+      return;
+    }
+    if(a==='vendor-replies'){
+      operation('simulate_vendor_replies',{
+        case_id:id
+      }
+      ,'Sample vendor replies loaded. Review availability, price and quote validity.');
+      return;
+    }
+    if(a==='inquire'){
+      operation('request_availability',{
+        case_id:id
+      }
+      ,'Availability inquiries queued in the workspace. No external message was sent.');
+      return;
+    }
+    if(a==='choose-vendor'){
+      const[caseId,vendorId]=id.split('|');
+      await operation('propose_vendor',{
+        case_id:caseId,vendor_id:vendorId
+      }
+      ,'Exact cost and schedule proposal prepared.');
+      if(!ui.notice?.error){
+        ui.tab='change';
+        render();
+      }
+      return;
+    }
+    if(a==='commercial-approve'||a==='commercial-reject'){
+      const c=cases().find(x=>x.id===id);
+      if(c?.current_proposal)mutate('/api/operations/respond',{
+        actor_id:'commercial',operation:{
+          type:'simulate_authority_response',case_id:id,proposal_id:c.current_proposal.id,status:a==='commercial-approve'?'approved':'rejected',reason:'Explicit simulated commercial response recorded from the demo control.'
+        }
+      }
+      ,a==='commercial-approve'?'Sample commercial approval recorded. Commit the authorized change to update the plan.':'Sample commercial rejection recorded; the case remains open.');
+      return;
+    }
+    if(a==='commit-approved'){
+      const c=cases().find(x=>x.id===id);
+      if(c?.current_proposal)operation('commit_proposal',{
+        case_id:id,proposal_id:c.current_proposal.id
+      }
+      ,'Commercially authorized package committed; counterpart confirmations remain outstanding.');
+      return;
+    }
+    if(a==='approve'||a==='request-approval'){
+      const c=cases().find(x=>x.id===id);
+      if(c?.current_proposal)operation(a==='approve'?'approve_and_commit':'request_approval',{
+        case_id:id,proposal_id:c.current_proposal.id
+      }
+      ,a==='approve'?'Authorized change committed. Booking and institutional acceptance remain separate.':'Approval request routed to the designated commercial approver.');
+      return;
+    }
+    if(a==='confirm-booking'){
+      const b=arr(ops().bookings).find(x=>x.id===id);
+      mutate('/api/operations/respond',{
+        actor_id:b?.recipient_id||b?.vendor_id,operation:{
+          type:'confirm_booking',case_id:b?.case_id||ui.caseId,booking_id:id
+        }
+      }
+      ,'Sample counterpart confirmation recorded.');
+      return;
+    }
+    if(a==='engine-action'){
+      const b=arr(ui.data.dashboard?.bottlenecks).find(x=>x.id===id);
+      if(b?.action)await mutate('/api/action',{
+        action:b.action
+      }
+      ,'Next action processed through project controls.');
+      return;
+    }
+  }
+  );
+  app.addEventListener('change',e=>{
+    if(e.target.id==='vendor-filter'){
+      ui.vendorFilter=e.target.value;
+      ui.pages.vendors=0;
+      render();
+    }
+  }
+  );
+  let searchTimer;
+  app.addEventListener('input',e=>{
+    if(e.target.id==='vendor-search'){
+      const value=e.target.value,selection=e.target.selectionStart;
+      clearTimeout(searchTimer);
+      searchTimer=setTimeout(()=>{
+        ui.vendorQuery=value;
+        ui.pages.vendors=0;
+        render();
+        const field=document.getElementById('vendor-search');
+        field?.focus();
+        field?.setSelectionRange(selection,selection);
+      }
+      ,180);
+    }
+  }
+  );
+  app.addEventListener('submit',async e=>{
+    e.preventDefault();
+    if(ui.busy)return;
+    const form=e.target;
+    if(form.id==='decision-note-form'){
+      const text=new FormData(form).get('text').trim(),d=ui.dialog,c=cases().find(x=>x.id===d.id);
+      if(!text)return;
+      ui.dialog=null;
+      await operation(d.type==='reject'?'reject_proposal':'request_clarification',{
+        case_id:d.id,...(d.type==='reject'?{
+          proposal_id:c?.current_proposal?.id,reason:text
+        }
+        :{
+          text
+        }
+        )
+      }
+      ,d.type==='reject'?'Option rejected. The underlying issue remains open.':'Clarification request recorded. The underlying issue remains open.');
+      return;
+    }
+    if(form.id==='message-form'){
+      const data=new FormData(form);
+      const files=Array.from(form.elements.attachments.files);
+      if(files.length>4){
+        ui.notice={
+          text:'Attach up to four original images per report.',error:true
+        }
+        ;
+        render();
+        return;
+      }
+      try{
+        const attachments=await Promise.all(files.map(file=>new Promise((resolve,reject)=>{
+          if(!['image/png','image/jpeg','image/webp'].includes(file.type))return reject(new Error('Attachments must be PNG, JPEG or WebP images.'));
+          if(file.size>4*1024*1024)return reject(new Error('Each image must be no larger than 4 MiB.'));
+          const reader=new FileReader();
+          reader.onload=()=>resolve({
+            name:file.name,mime_type:file.type,data_base64:String(reader.result).split(',')[1]
+          }
+          );
+          reader.onerror=()=>reject(new Error('An attachment could not be read.'));
+          reader.readAsDataURL(file);
+        }
+        )));
+        await mutate('/api/messages',{
+          sender_id:data.get('sender_id'),subject:data.get('subject'),raw_text:data.get('raw_text'),case_id:data.get('case_id')||null,attachments
+        }
+        ,'Original stakeholder report saved. Generate its ChatGPT summary to triage it.',()=>{
+          ui.view='inbox';
+          ui.messageId=messages()[0]?.id;
+        }
+        );
+      }
+      catch(error){
+        ui.notice={
+          text:error.message,error:true
+        }
+        ;
+        render();
+      }
+    }
+  }
+  );
+  document.addEventListener('keydown',event=>{
+    if(['Enter',' '].includes(event.key)&&event.target.matches('g[role=button]')) {
+      event.preventDefault(); event.target.dispatchEvent(new MouseEvent('click',{bubbles:true}));
+    }
+    if(event.key==='Escape'&&ui.dialog){
+      ui.dialog=null;
+      render();
+    }
+    if(event.key==='Tab'&&ui.dialog){
+      const controls=[...app.querySelectorAll('.modal button:not([disabled]),.modal textarea,.modal input,.modal select,.modal a')];
+      const first=controls[0],last=controls[controls.length-1];
+      if(event.shiftKey&&document.activeElement===first){
+        event.preventDefault();
+        last?.focus();
+      }
+      else if(!event.shiftKey&&document.activeElement===last){
+        event.preventDefault();
+        first?.focus();
+      }
+    }
+  }
+  );
+  setInterval(checkUpdates,8000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkUpdates();});
+  refresh().then(render).catch(error=>{
+    app.innerHTML=`<main class="connection-error"><span class="brand-mark">e</span><h1>Could not open the workspace</h1><p>${esc(error.message)}</p><button class="btn primary" onclick="location.reload()">Retry connection</button></main>`;
+  }
+  );
+}
+)();

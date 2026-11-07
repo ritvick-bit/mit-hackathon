@@ -1,0 +1,85 @@
+{
+  "version": "0.5.0",
+  "test": "Fresh ChatGPT multimodal summary through background job and SQLite persistence",
+  "message_id": "message-riverbend-illustrative-field-note",
+  "source_hash": "5527717a11bd236555a75ad7dbf70adccc3430c872442a9a11ce9eb5a84a77fb",
+  "image_sha256": "c8e1b305d4630bb5900ded73194f36162b549e0bb66a43a4184354686bac71ee",
+  "summary": {
+    "text": "The verifier reports a metering/CT identification discrepancy and requests qualified electrical support and independent reinspection after engineering reconciliation. The attachment is illustrative; utility operating acceptance and customer IT readiness remain open.",
+    "mode": "live",
+    "generated_at": "2026-11-07T19:05:51.419014+00:00",
+    "source_hash": "5527717a11bd236555a75ad7dbf70adccc3430c872442a9a11ce9eb5a84a77fb",
+    "uncertainties": [
+      "The underlying technical condition and required corrective scope are not established.",
+      "Engineering reconciliation, corrective work and independent reinspection are not confirmed complete.",
+      "Utility operating acceptance and customer IT readiness remain unconfirmed."
+    ],
+    "trace": {
+      "role": "Stakeholder report reader",
+      "usage": {
+        "input_tokens": 11915,
+        "cached_input_tokens": 0,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 322,
+        "reasoning_output_tokens": 0
+      },
+      "thread_id": "01a1b766-fb3f-78c0-bfd8-897046df7668",
+      "elapsed_seconds": 9.5,
+      "prompt_version": "eqore-agents-0.5.0",
+      "requested_model": "Codex runtime default (not pinned)",
+      "reasoning_effort": "low",
+      "provider": "ChatGPT via Codex",
+      "mode": "live"
+    }
+  },
+  "image_observations": [
+    "The attachment visibly identifies itself as a synthetic, illustrative schematic, not a site photograph.",
+    "The diagram states that field identification does not match the issued single-line reference and that no wiring diagnosis is established.",
+    "The diagram states that the verification hold remains open and that vendor inquiry or PM cost approval does not establish technical acceptance or permission to operate."
+  ],
+  "assertions": [
+    {
+      "claim": "The message reports a metering/CT identification discrepancy without establishing an engineering diagnosis.",
+      "source_message_id": "message-riverbend-illustrative-field-note",
+      "source_quotes": [
+        "Attached is an authored demo diagram illustrating the reported metering/CT identification discrepancy.",
+        "It is not a site photograph or engineering diagnosis.",
+        "Please arrange qualified electrical support and independent reinspection after the engineer reconciles the issued design.",
+        "Utility operating acceptance and customer IT readiness remain separate open requirements."
+      ],
+      "source_hash": "5527717a11bd236555a75ad7dbf70adccc3430c872442a9a11ce9eb5a84a77fb",
+      "validation_status": "reported_not_authorized"
+    },
+    {
+      "claim": "Electrical support and independent reinspection are requested after the engineer reconciles the issued design.",
+      "source_message_id": "message-riverbend-illustrative-field-note",
+      "source_quotes": [
+        "Attached is an authored demo diagram illustrating the reported metering/CT identification discrepancy.",
+        "It is not a site photograph or engineering diagnosis.",
+        "Please arrange qualified electrical support and independent reinspection after the engineer reconciles the issued design.",
+        "Utility operating acceptance and customer IT readiness remain separate open requirements."
+      ],
+      "source_hash": "5527717a11bd236555a75ad7dbf70adccc3430c872442a9a11ce9eb5a84a77fb",
+      "validation_status": "reported_not_authorized"
+    },
+    {
+      "claim": "Utility operating acceptance and customer IT readiness are reported as separate open requirements.",
+      "source_message_id": "message-riverbend-illustrative-field-note",
+      "source_quotes": [
+        "Attached is an authored demo diagram illustrating the reported metering/CT identification discrepancy.",
+        "It is not a site photograph or engineering diagnosis.",
+        "Please arrange qualified electrical support and independent reinspection after the engineer reconciles the issued design.",
+        "Utility operating acceptance and customer IT readiness remain separate open requirements."
+      ],
+      "source_hash": "5527717a11bd236555a75ad7dbf70adccc3430c872442a9a11ce9eb5a84a77fb",
+      "validation_status": "reported_not_authorized"
+    }
+  ],
+  "checks": {
+    "raw_message_unchanged": true,
+    "gates_unchanged": true,
+    "budget_unchanged": true,
+    "tasks_unchanged": true,
+    "saved_live_mode": true
+  }
+}

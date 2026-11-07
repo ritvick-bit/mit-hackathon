@@ -24,3 +24,4 @@ data/*
 !data/challenge-results-after-v04.json
 !data/phase-live-decisions-v04.json
 !data/phases-v04.png
+!data/pm-message-vision-v05.json

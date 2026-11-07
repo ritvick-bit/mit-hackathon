@@ -40,7 +40,7 @@ class PhaseAPIIntegrationTests(unittest.TestCase):
     def test_bootstrap_exposes_verified_source_review_and_observed_phases(self):
         before = self.app.store.read()
         result = self.app.bootstrap()
-        self.assertEqual(result["version"], "0.4.0")
+        self.assertEqual(result["version"], "0.6.0")
         self.assertEqual(Handler.server_version, "EqoreDemo/" + APP_VERSION)
         self.assertEqual(result["phases"], phases.summarize(before["state"], result["analysis"]))
         self.assertEqual(result["workflow_review"]["status"], "partially_verified")
