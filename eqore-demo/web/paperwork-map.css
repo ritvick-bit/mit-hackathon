@@ -1,0 +1,34 @@
+/* Scoped interactive map: the surrounding portfolio layout lives in paperwork.css. */
+.relay-map { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
+.relay-map-canvas { position:relative; flex:1; min-height:210px; overflow:hidden; background:radial-gradient(ellipse at 45% 40%,#f8fbf6,#edf3ec); }
+.relay-map-svg { display:block; width:100%; height:100%; min-height:210px; cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; }
+.relay-map-canvas.is-panning .relay-map-svg,.relay-map-canvas.is-panning .relay-map-marker { cursor:grabbing; }
+.relay-map-svg:focus-visible { outline:2px solid #6d9278; outline-offset:-3px; }
+.relay-map-marker { cursor:pointer; --map-priority:#668c70; }
+.relay-map-marker.urgent,.relay-map-number.urgent { --map-priority:#c95334; }
+.relay-map-marker.high,.relay-map-number.high { --map-priority:#b3872e; }
+.relay-map-hit { fill:transparent; }
+.relay-map-dot { fill:var(--map-priority); stroke:#fffef7; stroke-width:2; }
+.relay-map-marker:hover .relay-map-dot,.relay-map-marker:focus-visible .relay-map-dot { stroke:#183e35; stroke-width:3; }
+.relay-map-marker:focus-visible { outline:none; }
+.relay-map-marker text { fill:white; font-size:10px; font-weight:650; pointer-events:none; }
+.relay-map-cluster-plus { fill:none; stroke:#24493c; stroke-width:2; stroke-linecap:round; pointer-events:none; }
+.relay-map-controls { position:absolute; top:12px; right:12px; display:flex; flex-direction:column; border:1px solid #ccd9c6; border-radius:8px; background:#fffff9ed; box-shadow:0 2px 8px #163f3510; overflow:hidden; }
+.relay-map-controls button { width:33px; height:32px; display:grid; place-items:center; font-size:21px; line-height:1; color:#315c48; padding:0; cursor:pointer; border-bottom:1px solid #dde5d7; }
+.relay-map-controls button:last-child { border-bottom:0; }
+.relay-map-controls button:hover:not(:disabled) { background:#e7efdf; }
+.relay-map-controls button:disabled { cursor:default; opacity:.35; }
+.relay-map-controls button:focus-visible { outline-offset:-3px; }
+.relay-map-controls svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+.relay-map-zoom { position:absolute; right:13px; bottom:11px; font-size:10px; color:#667e65; background:#fffff5db; border-radius:4px; padding:3px 5px; pointer-events:none; }
+.relay-map-empty { position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; font-size:12px; color:#758671; }
+.relay-map-sites { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:4px; flex-shrink:0; padding:10px 12px; border-top:1px solid var(--line,#dce4d3); background:var(--paper,#fffffa); max-height:118px; overflow:auto; scrollbar-width:thin; scrollbar-color:#c3d1bc transparent; }
+.relay-map-site { display:flex; align-items:center; gap:7px; min-width:0; padding:7px 5px; border-radius:5px; text-align:left; cursor:pointer; }
+.relay-map-site:hover { background:#edf2e5; }
+.relay-map-number { --map-priority:#668c70; color:var(--map-priority); background:color-mix(in srgb,var(--map-priority) 12%,transparent); border:1px solid color-mix(in srgb,var(--map-priority) 25%,transparent); width:21px; height:21px; border-radius:50%; display:grid; place-items:center; flex-shrink:0; font-size:9px; font-weight:650; }
+.relay-map-site-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; color:#49654f; }
+.relay-map-site-name small { font-size:8px; color:#8a9782; margin-left:4px; }
+@media(max-height:780px) and (min-width:801px) { .relay-map-canvas,.relay-map-svg { min-height:160px; } .relay-map-sites { padding:7px 10px; max-height:105px; } .relay-map-site { padding:5px; } }
+@media(max-width:1100px) and (min-width:801px) { .relay-map-sites { grid-template-columns:repeat(2,minmax(0,1fr)); max-height:116px; } }
+@media(max-width:800px) { .relay-map { min-height:360px; } .relay-map-canvas { min-height:270px; } .relay-map-svg { height:270px; } .relay-map-sites { max-height:130px; } }
+@media(prefers-reduced-motion:reduce) { .relay-map * { transition:none; } }

@@ -50,12 +50,36 @@ class Store:
                     name TEXT NOT NULL, mime_type TEXT NOT NULL,
                     sha256 TEXT NOT NULL, data BLOB NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS workspaces (
+                    id TEXT PRIMARY KEY, version INTEGER NOT NULL, payload TEXT NOT NULL
+                );
             """)
 
     def connect(self):
         db = sqlite3.connect(self.path, timeout=15)
         db.row_factory = sqlite3.Row
         return db
+
+    def ensure_workspace(self, identity, initial):
+        with self.lock, self.connect() as db:
+            db.execute("INSERT OR IGNORE INTO workspaces VALUES(?,1,?)", (identity, json.dumps(initial)))
+
+    def read_workspace(self, identity):
+        with self.connect() as db:
+            row = db.execute("SELECT version,payload FROM workspaces WHERE id=?", (identity,)).fetchone()
+        if row is None:
+            raise ValueError("Unknown workspace.")
+        return {"version": row["version"], "state": json.loads(row["payload"])}
+
+    def write_workspace(self, identity, state, expected):
+        with self.lock, self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT version FROM workspaces WHERE id=?", (identity,)).fetchone()
+            if not row or row["version"] != expected:
+                raise Conflict("Paperwork changed while you were reviewing it. Refresh and review the current record before trying again.")
+            version = expected + 1
+            db.execute("UPDATE workspaces SET version=?,payload=? WHERE id=?", (version, json.dumps(state, ensure_ascii=False), identity))
+        return version
 
     def seed_vendors(self, profiles):
         with self.lock, self.connect() as db:

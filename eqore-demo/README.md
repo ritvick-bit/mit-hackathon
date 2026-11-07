@@ -1,6 +1,8 @@
-# EQORE deployment workspace — v0.6
+# Relay — EQORE paperwork and deployment workspace — v0.7
 
-A local hackathon prototype joining PM decisions and contractor reports over one project database. It records facts, identifies blocked work, recommends the next useful action and contact, and coordinates scoped vendor changes. Project-specific subcontractor calendars, procurement and readiness views incorporate the command-center workflow. The knowledge library is grounded in EQORE's published [deployment PM responsibilities](https://www.eqore.com/careers/project-manager-deployments). Data and outreach remain demonstration records; no external email or real bookings are sent.
+The November 7 client calibration focuses on **Option 4: Compliance documentation at scale**. Open a project's **Document coverage** view to review the 20 source-linked requirements, adopt a missing record with a due date, and track review dates or site changes. **EQORE references** contains all 12 supplied source links and the verified Century-Tywood equipment/site example. Existing project histories are preserved; the reference site has no invented approval dates or budgets. See [client calibration](docs/CLIENT_CALIBRATION.md).
+
+A local hackathon prototype focused on the paperwork between a signed battery project and completed delivery. The opening PM workspace combines a pannable, zoomable US project map with a scrolling queue of document follow-ups. Project overviews put ranked next actions ahead of the document register and include capacity, industry, baseline budget, target handover and site constraints. Original emails, signature history, current revisions and dependencies remain linked to each document. The earlier delivery, contractor and vendor workflows remain available as secondary pages. The knowledge library is grounded in EQORE's published [deployment PM responsibilities](https://www.eqore.com/careers/project-manager-deployments); the project records and twenty-document template are illustrative, not EQORE's internal SOP.
 
 ## Start
 
@@ -12,11 +14,11 @@ cd mit-hackathon/eqore-demo
 python3 server.py
 ```
 
-Open the **PM workspace at http://127.0.0.1:8765/** and the **partner workspace at http://127.0.0.1:8765/contractor.html** in separate tabs. Both use this one server and database. Choose a recorded contractor role to preview its assigned work; the role picker is not production authentication. The service binds only to the local machine. Use `--port 8766` if occupied. Current state, audit snapshots and evaluation reports persist in `data/eqore.sqlite3`; each project retains its own state, event cursor and latest recommendation. Switching PM projects resumes saved progress. Explicit reset affects only the selected project; audit and reasoning history are retained. A newer demo-world version refreshes only untouched openings, archives their previous state, and preserves projects with recorded progress.
+Open the **paperwork workspace at http://127.0.0.1:8765/** (also `/paperwork.html`). Select Jordan Lee or Casey Morgan to view that PM's assigned projects. This local profile picker is not production identity authentication. The **delivery workspace remains at http://127.0.0.1:8765/delivery.html** and the **partner workspace at http://127.0.0.1:8765/contractor.html**. All use one server and SQLite database, with paperwork stored as its own portfolio record rather than overwriting physical-work state. The service binds only to the local machine. Use `--port 8766` for an isolated local run; the current browser OAuth callback is specifically configured for `http://localhost:8765`.
 
-A fresh clone creates its own database and seeds all three demo projects. Project progress, saved recommendations and evaluation history are local to each teammate. Committed JSON validation reports are reference files; they are not automatically imported into the new database or shown as saved Evaluation/Challenge lab runs. Run the evaluations from the app to populate your own history. Databases, credentials and newly generated runtime artifacts are excluded from Git.
+A fresh clone creates `data/eqore.sqlite3` and seeds eight active paperwork projects for Jordan, two for Casey, and one completed archive for each PM. Every project has twenty document records. The delivery engine separately retains its three full project worlds. Matching Harbor, Millbrook and Riverbend selectors connect the concepts, but paperwork completion does not update delivery tasks, budgets or institutional gates. Saved progress is local to each teammate. Committed validation reports are reference files, not automatically imported evaluation runs. Databases, credentials and runtime artifacts remain outside Git.
 
-For live judgment, each teammate needs a compatible `codex` CLI on their `PATH` and must sign in with their own ChatGPT account (`codex login`, then `codex login status`). The app calls that authenticated runtime; it does not use canned model answers or copy credentials. Authentication is checked at server startup, so restart the service after signing in. The PM inbox offers **Summarize with ChatGPT** for original text and image reports, with separate reading summaries and internal extracted observations. On the internal testing page (`/legacy.html`), deterministic recommendations are labelled **Fixed-rule baseline**; **Rethink with ChatGPT** makes three fresh agent calls and displays **Live LLM judgment** on success. Failed live calls remain errors and never silently become baseline results.
+For live judgment, each teammate needs a compatible `codex` CLI on their `PATH` and must sign in with their own ChatGPT account (`codex login`, then `codex login status`). Restart the service after signing in. Paperwork offers fresh reading summaries and email prose drafts, stored separately from originals and acceptance events. An email connection is not required: prepared drafts can be edited, copied or downloaded. The delivery inbox retains text/image analysis, and `/legacy.html` retains the three-agent judgment experiments. Failed live calls remain errors; they never silently become fixed-rule or sample model answers.
 
 Optional configuration:
 
@@ -26,7 +28,7 @@ Optional configuration:
 
 ## Working together
 
-Claude Code automatically reads `CLAUDE.md` in this module, which imports [INTEGRATION.md](INTEGRATION.md). That guide documents the unified APIs, report idempotency, project version hashes and remaining deployment limits. The sibling `contractor/` and `command-center/` applications are retained as references; run `eqore-demo/server.py` for the integrated experience. Their independent 25-job catalog and state stores are not synchronized with this app. The PM page loads `web/pm.css`, the integrated partner page loads `web/contractor.css`, and `web/styles.css` preserves the older sibling portal's stylesheet contract.
+Claude Code automatically reads `CLAUDE.md`, which imports [INTEGRATION.md](INTEGRATION.md). The guide documents paperwork sessions and provider boundaries as well as the older delivery/contractor APIs. Run `eqore-demo/server.py`; sibling `contractor/` and `command-center/` apps remain references, not additional synchronized databases. The opening page uses `web/paperwork.css`, delivery uses `web/pm.css`, and the partner page uses `web/contractor.css`.
 
 Read the team repository’s `AGENTS.md` and `docs/CHALLENGE.md`, then create a branch before making changes. Run the automated regression suite from `eqore-demo/` and open a pull request against `main`:
 
@@ -43,9 +45,33 @@ git push -u origin codex/describe-your-change
 
 Coordinate the issue and branch naming with the team’s repository rules, and include the behavior change and relevant validation in the pull request. Keep local databases and authentication out of commits. The three frozen challenge artifacts in `data/` are tracked test inputs; preserve their bytes and recorded failures when changing the implementation. Add new evaluation reports separately when they provide useful evidence.
 
-## Five-minute walkthrough
+## Paperwork walkthrough
 
-1. Open **Portfolio** and choose one of the three Massachusetts projects. Geographic anchors identify approximate city locations, not surveyed site addresses. **Site overview** keeps budget, phases, checkpoints, reports and ranked decisions together.
+1. Select **Jordan Lee**. The opening work queue covers eight active projects, with separate ready, awaiting-response and returned categories. Priority combines recorded status, overdue days and direct document dependencies; it is a coordination heuristic, not a construction critical-path calculation.
+2. Open a project to see its twenty-document register, responsible people, due dates and prerequisites. Some documents require signatures, others a review or an authority-issued record. Permit and utility records are not automatically DocuSign envelopes.
+3. Open a document to inspect its current draft, original emails, signing/review events and dependency revisions. One recipient's signature leaves a multi-recipient document open. A revised prerequisite blocks dependent completion until the dependent record is revalidated; prior signatures remain in history.
+4. Prepare a stakeholder email, edit it, and copy or download it. Nothing is sent. When ChatGPT is available, request a fresh summary or prose draft; it cannot sign, accept a record or infer permission from an email.
+5. Use **Try a sample update** to exercise an explicitly local response. Returned/declined documents need a new revision. Archives retain completed records read-only and require all current documents plus an explicit PM closeout attestation.
+
+The two archive examples and all opening sources are authored samples. Completed paperwork does not establish physical completion or permission to energize. Counts distinguish actionable overdue documents from overdue documents waiting on prerequisites.
+
+## Standards review and pressure testing
+
+See [standards evaluation](docs/STANDARDS_EVALUATION.md) for a source-based scorecard, applicable-edition questions and exact missing pilot-site inputs. The catalog provides workflow/evidence checklists, not a clause-by-clause compliance certificate. UL 9540 certification and UL 9540A testing are separate records; a newer published code is not automatically adopted for a permit.
+
+[Pressure-test findings](docs/PRESSURE_TEST_REPORT.md) record independent adversarial cases, original failures, fixes and bounded scale/concurrency measurements. Duplicate, out-of-order and mixed-timezone events preserve original completion evidence. Expired prerequisite reviews block downstream dispatch. Provider signer identity is checked against the frozen reviewed name/email, not just a recipient ID.
+
+## Connected-account boundary
+
+The DocuSign sandbox adapter and OAuth flow are implemented, but this repository does not establish that a live account has been connected. Check **Integrations** for an actual successful account check. Preparing a real envelope creates an **unsent draft** for reviewed test recipients; local sample packages cannot silently become provider envelopes. Text drafts include a distinct signature/date field for each signer. PDF/DOCX fields and recovered envelopes require review in DocuSign. Sign and send outside this app in the intended provider account, then use manual **Sync DocuSign status**. The app reads verified provider status; it has no automatic Connect webhook listener or automatic background provider polling. It does not yet archive the executed PDF/completion certificate or prove that externally edited document bytes match the original local draft. **Create test draft** in Integrations makes one unsent, non-contractual connection-check document, separate from project approvals; retries recover the same request.
+
+Provider reconciliation checks the exact project, document, revision, envelope and recipient mapping. All required recipient signatures and the envelope's own completed event are needed for provider completion. Out-of-order, wrong-project and stale evidence are retained for review. Neither browser redirects nor ordinary emails count as signatures or regulatory acceptance. No permanent signing URL is invented or stored.
+
+Gmail is the preferred mailbox provider. Email connection remains deferred and is not assumed to be active. The included mailbox adapter can create drafts and read explicitly matched replies when deliberately configured; it cannot send email. Unknown senders remain original evidence for review, not verified project authorities. OAuth credentials stay in the running server process and are scoped to the local PM session; restarting or logging out requires reconnecting. See [paperwork sources and provider semantics](docs/PAPERWORK_COORDINATION.md) for provider details and the illustrative template.
+
+## Delivery and partner walkthrough (secondary pages)
+
+1. Open **`/delivery.html` → Portfolio** and choose one of the three Massachusetts projects. Geographic anchors identify approximate city locations, not surveyed site addresses. **Site overview** keeps budget, phases, checkpoints, reports and ranked decisions together.
 2. Open **Subcontractors**, **Procurement** and **Readiness**. Review external-partner work windows, proposed versus booked work, equipment/order records, delivery versus physical receipt, customer shutdown authorization, and explicit acceptance criteria. Readiness counts are not a critical-path score or dispatch permission.
 3. In the partner tab, select the rigging contact and Harbor. Report the delivery/unloading conflict on the assigned task, optionally attach a photo and request rigging support. The original appears in PM **Inbox** and links a matching decision or opens a scoped case. Reports retain their own identities so retries do not create duplicates.
 4. Open the linked PM decision. Compare scoped vendor offers, qualifications, price and timing. Inquiry recipients can reply through their partner accounts; **Load sample replies** also exercises the local workflow. No external inquiry email is sent.
@@ -88,6 +114,8 @@ Harbor now receives a returned permit-amendment package, Millbrook receives util
 | --- | --- |
 | `server.py` | Local HTTP API, background reasoning/evaluation jobs and explicit simulator controls |
 | `storage.py` | SQLite project snapshots, vendor profiles, immutable image blobs, audit history and stale-state conflict protection |
+| `paperwork.py`, `paperwork_api.py` | PM-scoped document portfolio, revision-bound completion, original history, local sessions, version checks and reading assistance |
+| `paperwork_connectors.py`, `paperwork_oauth.py` | Explicit provider reads/draft creation and loopback test-account OAuth; no email/envelope send or webhook listener |
 | `operations.py`, `vendors.py` | Source-linked support cases, automatic simulated sourcing, scoped quotes, exact approval, cost/schedule commitment and counterpart bookings |
 | `messages.py`, `workspace.py` | Original reports and images, separate live summaries/extractions, validated finance and calendar projections |
 | `contractor_bridge.py` | Project-scoped partner reports, idempotent report identities, owned-task completion, inquiry replies and counterpart bookings using the existing domain rules |
@@ -124,7 +152,9 @@ Development cases cover normal progress, delivery recovery, delay within slack, 
 
 Evaluations check observed actions and final state, including required progress. Always waiting fails a reachable case. Honest blocking passes only when the required external response is unavailable under the scenario and the appropriate contact was requested. Case reports preserve hashes, mode, action traces, checks and live-agent call metadata. These are visible development fixtures; no sealed holdout or real-world effectiveness claim is made. Model output can vary; the default model is not pinned unless `EQORE_MODEL` is set.
 
-**v0.6 integration checks:** the regression suite includes project-resource projections and contractor/API checks for shared-state visibility, project-scoped versions, owner restrictions, report idempotency and source preservation. Run the full suite above for the current checkout; historical result counts below describe their recorded releases.
+**v0.7 paperwork checks:** domain tests cover PM scope, twenty-document seed consistency, all-recipient completion, dependency rework, split overdue counts, stale and duplicate events, original retention, archive attestation, provider trust/mapping, real dispatch timestamps and read-only observations. API, adapter and OAuth tests exercise local persistence and provider contracts with test doubles; passing them does not establish a live account connection. Run the full suite above for the current checkout.
+
+**Previous v0.6 integration checks:** the regression suite includes project-resource projections and contractor/API checks for shared-state visibility, project-scoped versions, owner restrictions, report idempotency and source preservation. Historical result counts below describe their recorded releases.
 
 **Previous v0.5 validation:** the final full regression run passed **200 tests**, including 47 new vendor/message tests. Further integration checks cover the three enriched projects from sourcing through accepted handoff, using simulated counterpart evidence. Fresh ChatGPT calls successfully summarized a text-only electrical report and a report with the authored field-note image. The image run preserved the raw source, task state, budget and authority gates; its trace is `data/pm-message-vision-v05.json`. These selected live calls are not a full live-model evaluation of the projects.
 
@@ -146,12 +176,12 @@ Previous version validation on November 7, 2026: **50 automated checks passed; a
 
 ## Current scope
 
-All projects, contacts, costs, delegation limits and counterpart responses are synthetic. No real email, permit submission, booking, payment or equipment control occurs. Public references are contextual evidence, not an EQORE internal SOP or a determination of project-specific engineering/regulatory compliance.
+All seeded projects, contacts, costs, delegation limits and counterpart responses are synthetic. Explicitly connected account imports and provider drafts are separately labelled. The app does not send email or signature requests, submit permits, book real work, pay vendors or control equipment. Public references are contextual evidence, not an EQORE internal SOP or a determination of project-specific compliance.
 
 The scope begins with a signed agreement and ends at accepted handoff. Sales qualification, pre-signing negotiations and ongoing dispatch/O&M are excluded. Program eligibility/status may be carried in handoff information; actual enrollment, seasonal eligibility decisions, program revenue and savings are not simulated.
 
 The prototype covers PM workstreams at different depths. Contractor reports, scoped vendor changes and counterpart bookings now share the three PM project snapshots. Saved vendor reservations constrain availability across projects; the app does not globally optimize staffing or model an EQORE-owned crew pool. Readiness uses explicit stage criteria; equipment lead time and purchase order IDs remain unknown where no record exists. Checklist learning reviews a scoped authored proposal rather than mining a historical corpus. Qualified-actor inspection and acceptance data remain authored scenario evidence. Historical challenge reports describe their own coverage.
 
-Contractor requests use opaque project snapshot hashes and do not change PM project selection. Stable client report IDs make identical retries idempotent; changed content requires a new ID. ChatGPT report analysis is project-scoped and discarded if that project changes while the model runs. PM still has one globally selected session, so simultaneous PM users require per-user selection before shared deployment. Local role selection and bearer tokens enforce preview routing but are not real identity authentication. Production authentication/delegation, external communications, richer scheduling, fresh holdouts and repeated live evaluations remain future work.
+Contractor requests use opaque project snapshot hashes and do not change delivery PM selection. Stable client report IDs make identical retries idempotent; changed content requires a new ID. ChatGPT report analysis is project-scoped and discarded if that project changes while the model runs. Paperwork has separate PM-scoped sessions with a shared portfolio version; the older delivery workspace still has one globally selected PM session. Profile pickers and bearer tokens enforce preview routing, not real identity authentication. Production identity/delegation, durable token storage, automatic provider webhooks, external sending, richer scheduling and repeated live evaluations remain future work.
 
 The detailed planning record remains in `EQORE_PM_GROUNDED_PLAN_v0_2.md`; it is historical planning context, not a claim that all planned production capabilities are finished.

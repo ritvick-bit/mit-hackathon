@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """EQORE demo: local HTTP API, transactional persistence and live decision jobs."""
 import argparse
+import html
+from http.cookies import SimpleCookie
 import copy
 import json
 import mimetypes
@@ -30,9 +32,11 @@ import workspace
 import contractor_bridge
 import project_resources
 from storage import Conflict, Store
+from paperwork_api import PaperworkService
+from paperwork_connectors import ConnectorError
 
 ROOT = Path(__file__).resolve().parent
-APP_VERSION = "0.6.0"
+APP_VERSION = "0.7.0"
 CAPABILITIES = [
     ("CAP01", "Portfolio coordination", "Three saved project workspaces with distinct costs, stakeholders and constraints; shared resources are recorded assumptions, not a portfolio optimizer."),
     ("CAP02", "Schedule, procurement & cost", "Delivery evidence, feasible recovery options, scoped approval and atomic plan commitment."),
@@ -77,6 +81,7 @@ class Application:
         self.store.refresh_pristine_projects([projects.initial_state(p["id"]) for p in catalog])
         self.store.seed_vendors(vendors.list_vendors())
         self.store.enrich_projects(self.initialize_workspace)
+        self.paperwork = PaperworkService(self.store, self.pool, self.auth)
 
     def initialize_workspace(self, state):
         if not state["project"].get("demo_project_id"):
@@ -458,10 +463,10 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "EqoreDemo/" + APP_VERSION
 
     def log_message(self, fmt, *args):
-        if "/api/jobs/" not in str(args):
+        if "/api/jobs/" not in str(args) and "/api/paperwork/oauth/" not in str(args):
             super().log_message(fmt, *args)
 
-    def send(self, value, status=200, content_type="application/json; charset=utf-8", attachment=False):
+    def send(self, value, status=200, content_type="application/json; charset=utf-8", attachment=False, headers=None):
         data = json.dumps(value, ensure_ascii=False).encode() if isinstance(value, (dict, list)) else value
         self.send_response(status)
         self.send_header("Content-Type", content_type)
@@ -472,6 +477,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'")
         if attachment:
             self.send_header("Content-Disposition", 'attachment; filename="eqore-project-trace.json"')
+        for key, value in (headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(data)
 
@@ -491,6 +498,22 @@ class Handler(BaseHTTPRequestHandler):
             self.local_request()
             path = urlparse(self.path).path
             query = parse_qs(urlparse(self.path).query)
+            if path.startswith('/api/paperwork/oauth/callback/'):
+                cookies = SimpleCookie(self.headers.get('Cookie', ''))
+                cookie = cookies.get('eqore_oauth')
+                token = cookie.value if cookie else ''
+                provider = path.rsplit('/', 1)[-1]
+                self.server.app.paperwork.oauth_complete(provider, query, token)
+                return self.send(b'<!doctype html><meta charset="utf-8"><title>Account connected</title><h1>Account authorized</h1><p>Return to your paperwork workspace and refresh connection status.</p><a href="/paperwork.html?view=integrations">Open workspace</a>', content_type='text/html; charset=utf-8', headers={'Set-Cookie':'eqore_oauth=; Path=/api/paperwork/oauth/; Max-Age=0; HttpOnly; SameSite=Lax'})
+            if path == "/api/paperwork/accounts":
+                return self.send({"accounts": self.server.app.paperwork.accounts()})
+            if path == "/api/paperwork/bootstrap":
+                return self.send(self.server.app.paperwork.bootstrap(self.bearer(), query.get("project_id", [None])[0]))
+            if path == "/api/paperwork/connectors":
+                self.server.app.paperwork.actor(self.bearer())
+                return self.send(self.server.app.paperwork.connector_status(self.bearer()))
+            if path.startswith("/api/paperwork/jobs/"):
+                return self.send(self.server.app.paperwork.job(self.bearer(), path.rsplit("/", 1)[1]))
             if path == "/api/bootstrap":
                 return self.send(self.server.app.bootstrap(query.get("project_id", [None])[0]))
             if path == "/api/updates":
@@ -545,7 +568,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send({"error": "Attachment not found in this project."}, 404)
                 return self.send(item["data"], content_type=item["mime_type"])
             # Exact allowlist: database, fixtures and private oracle are never served.
-            assets = {"/": "index.html", "/index.html": "index.html", "/styles.css": "styles.css", "/pm.css": "pm.css", "/app.js": "app.js",
+            assets = {"/": "paperwork.html", "/index.html": "paperwork.html", "/paperwork.html": "paperwork.html",
+                      "/paperwork.js": "paperwork.js", "/paperwork.css": "paperwork.css", "/delivery.html": "index.html",
+                      "/paperwork-map.js": "paperwork-map.js", "/paperwork-map.css": "paperwork-map.css",
+                      "/styles.css": "styles.css", "/pm.css": "pm.css", "/app.js": "app.js",
                       "/contractor.html": "contractor.html", "/contractor.js": "contractor.js", "/contractor.css": "contractor.css",
                       "/legacy.html": "legacy.html", "/legacy.js": "legacy.js", "/legacy.css": "legacy.css",
                       "/map.svg": "map.svg", "/field-note.svg": "field-note.svg"}
@@ -553,6 +579,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send({"error": "Not found."}, 404)
             file = ROOT / "web" / assets[path]
             self.send(file.read_bytes(), content_type=(mimetypes.guess_type(str(file))[0] or "application/octet-stream") + "; charset=utf-8")
+        except ConnectorError as exc:
+            self.send({"error": str(exc), "code": exc.code}, 400)
         except PermissionError as exc:
             self.send({"error": str(exc)}, 403)
         except (ValueError, KeyError, TypeError) as exc:
@@ -571,7 +599,23 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(payload, dict):
                 raise ValueError("Request must be an object.")
             path = urlparse(self.path).path
-            if path == "/api/contractor/login":
+            if path == '/api/paperwork/oauth/start':
+                if self.headers.get('Host') != 'localhost:8765':
+                    raise ValueError('Open http://localhost:8765 and select your PM profile to connect an account.')
+                token = self.bearer()
+                result = self.server.app.paperwork.oauth_start(token, payload)
+                return self.send(result, headers={'Set-Cookie':'eqore_oauth=' + token + '; Path=/api/paperwork/oauth/; Max-Age=600; HttpOnly; SameSite=Lax'})
+            if path == "/api/paperwork/login":
+                result = self.server.app.paperwork.login(payload.get("account_id"))
+            elif path == "/api/paperwork/logout":
+                result = self.server.app.paperwork.logout(self.bearer())
+            elif path == "/api/paperwork/action":
+                result = self.server.app.paperwork.action(self.bearer(), payload)
+            elif path == "/api/paperwork/assist":
+                result = self.server.app.paperwork.assist(self.bearer(), payload)
+            elif path == "/api/paperwork/connectors":
+                result = self.server.app.paperwork.connector_action(self.bearer(), payload)
+            elif path == "/api/contractor/login":
                 result = self.server.app.contractor_login(payload.get("actor_id"))
             elif path == "/api/contractor/action":
                 result = self.server.app.contractor_action(self.bearer(), payload)
@@ -592,6 +636,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send({"error": str(exc)}, 403)
         except Conflict as exc:
             self.send({"error": str(exc)}, 409)
+        except ConnectorError as exc:
+            self.send({"error": str(exc), "code": exc.code, "retryable": exc.retryable, "ambiguous": exc.ambiguous}, 502)
         except (ValueError, KeyError, TypeError, engine.DomainError) as exc:
             self.send({"error": str(exc)}, 400)
         except Exception as exc:
@@ -601,7 +647,7 @@ class Handler(BaseHTTPRequestHandler):
     def bearer(self):
         header = self.headers.get("Authorization", "")
         if not header.startswith("Bearer "):
-            raise PermissionError("A contractor session is required.")
+            raise PermissionError("A signed-in workspace session is required.")
         return header[7:]
 
 
