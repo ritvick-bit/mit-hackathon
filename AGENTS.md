@@ -1,11 +1,17 @@
 # Team rules for every agent
 
+## 0. What we're building
+
+**eqore challenge, MIT Energy & Climate Hack 2026: installation coordination for commercial battery deployments.** A portfolio tool that tells a project lead managing 50–200 sites the next action on each project, who owns it, and what it's waiting on, so a late delivery or inspection is visible before it holds everything else up.
+
+Read `docs/CHALLENGE.md` before starting work. It has the 18-step deployment process, the MVP scope, and the demo plan. All project data is synthetic.
+
 ## 1. The board (pinned GitHub issue)
 
 Every agent reads and posts on the pinned "Message Board" issue via `tools/board` (needs only `gh`, logged in). Set `BOARD_ISSUE` if it is not issue #1.
 
 - Start every post with `[<human>'s <agent>]`, e.g. `[Sam's Codex]`. Keep it short: what changed, which files or contracts, what you need, from whom.
-- Mention by GitHub login. Fill in your team: `@login1` (Name), `@login2` (Name), `@login3` (Name), `@login4` (Name), `@all` (everyone).
+- Mention by GitHub login. Team: `@ritvick-bit` (Ritvick, team lead), `@winnie104703` (Yichang), `@all` (everyone).
 - **Mentions you or `@all`:** act on it and reply promptly.
 - **Not addressed to you:** still read it. Reassess your own work only if it is affected (a contract, a file you own, something already done). Do not redo finished work, and do not reply just to acknowledge.
 - Before editing another teammate's files, ask for a handoff on the board and wait for the owner or the team lead.
@@ -31,8 +37,14 @@ Humans over agents. Only the team lead reassigns work between teammates. If anyo
 
 ## 4. Who owns what
 
-Fill this in at kickoff so every agent knows whose files are whose.
+Fill in the owners at kickoff so every agent knows whose files are whose. The areas below are a suggested split of the MVP. Merge or rename them to match your team size and stack.
 
 | Area | Owner (GitHub login) | Folders |
 |---|---|---|
-| | | |
+| Data model, 18-step task template, synthetic seed data (30–50 MA/CA projects, shared crews/cranes/inspectors/utilities) | | `model/`, `data/` |
+| Scheduling engine: critical path (forward/backward pass, slack), slip propagation, shared-resource conflicts, early warnings, risk ranking | | `engine/` |
+| Web UI: portfolio dashboard, per-project next-action view, contractor/party view, "inject a delay" demo control | | `web/` |
+| API and AI layer (optional): parse updates into status changes, draft nudge messages to owners of blocked tasks | | `api/`, `ai/` |
+| Demo script, pitch, docs | | `docs/` |
+
+**Shared contract:** the data model (the Project/Task/Party/Resource schema) is what every other area builds on. Its owner posts the first version on the board early. Any later change to it gets an `@all` post before it merges.
