@@ -8,7 +8,9 @@ connects to the PM's real Gmail and Google Calendar through Google OAuth:
   * /api/inbox    scans the Gmail inbox for paperwork (documents to sign or complete) and sorts it by department.
   * /api/calendar reads the PM's Google Calendar.
   * /api/send     sends an email from the PM's own Gmail account.
-  * /api/workspace saves the PM's own edits (products, documents, contractors) in pm/data/<PM>.json.
+  * /api/workspace saves the PM's own edits (products, contractors) in pm/data/<PM>.json.
+  * /api/paperwork/* is Yichang's document center (pm/doccenter/, from eqore-demo): documents, revisions,
+    signing events, compliance review, email drafts, DocuSign and Gmail drafts. Stored in pm/data/paperwork.json.
 
 Google tokens stay in this server's memory only and are never sent to the browser.
 
@@ -33,6 +35,15 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 from urllib.request import Request, urlopen
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "doccenter"))
+from adapter import DocCenter  # noqa: E402  (Yichang's document center)
+from engine import DomainError  # noqa: E402
+from paperwork_connectors import ConnectorError  # noqa: E402
+from storage import Conflict  # noqa: E402
+
+DOCS = None  # the document center service, created in main()
 
 ROOT = Path(__file__).resolve().parent.parent
 HERE = Path(__file__).resolve().parent
@@ -45,6 +56,7 @@ SCOPES = [
     "openid", "email", "profile",
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.compose",  # the document center's Gmail drafts
     "https://www.googleapis.com/auth/calendar.readonly",
 ]
 
@@ -283,10 +295,63 @@ class Handler(SimpleHTTPRequestHandler):
             raise ValueError("Request too large")
         return json.loads(self.rfile.read(length) or b"{}")
 
-    def session(self):
+    def token(self):
         cookies = dict(p.strip().split("=", 1) for p in (self.headers.get("Cookie") or "").split(";") if "=" in p)
+        return cookies.get("pm_session", "")
+
+    def session(self):
         with LOCK:
-            return SESSIONS.get(cookies.get("pm_session", ""))
+            return SESSIONS.get(self.token())
+
+    # -- Yichang's document center (pm/doccenter)
+    def paperwork(self, fn):
+        try:
+            return self.send_json(fn(self.token()))
+        except PermissionError as e:
+            return self.send_json({"error": str(e)}, HTTPStatus.FORBIDDEN if self.session() else HTTPStatus.UNAUTHORIZED)
+        except Conflict as e:
+            return self.send_json({"error": str(e)}, HTTPStatus.CONFLICT)
+        except ConnectorError as e:
+            return self.send_json({"error": str(e), "code": e.code, "retryable": e.retryable, "ambiguous": e.ambiguous}, HTTPStatus.BAD_GATEWAY)
+        except (ValueError, KeyError, TypeError, DomainError) as e:
+            return self.send_json({"error": str(e)}, HTTPStatus.BAD_REQUEST)
+
+    def paperwork_get(self, path, query):
+        if path.startswith("/api/paperwork/oauth/callback/"):
+            provider = path.rsplit("/", 1)[-1]
+            s = self.session() or {}
+            back = s.get("doc_return") or "#/portfolio"
+            try:
+                DOCS.oauth_complete(provider, query, self.token())
+                return self.redirect("/pm/" + back + ("&" if "?" in back else "?") + "connected=" + quote(provider))
+            except Exception as e:  # shown to the PM on return; provider errors never include tokens
+                return self.redirect("/pm/" + back + ("&" if "?" in back else "?") + "connect_error=" + quote(str(e)[:200]))
+        if path == "/api/paperwork/bootstrap":
+            return self.paperwork(lambda t: DOCS.bootstrap(t, query.get("project_id", [None])[0]))
+        if path == "/api/paperwork/connectors":
+            return self.paperwork(lambda t: (DOCS.actor(t), DOCS.connector_status(t))[1])
+        if path.startswith("/api/paperwork/jobs/"):
+            return self.paperwork(lambda t: DOCS.job(t, path.rsplit("/", 1)[1]))
+        if path == "/api/paperwork/documents":
+            return self.paperwork(DOCS.feed)
+        return self.send_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+
+    def paperwork_post(self, path, body):
+        if path == "/api/paperwork/action":
+            return self.paperwork(lambda t: DOCS.action(t, body))
+        if path == "/api/paperwork/ensure":
+            return self.paperwork(lambda t: DOCS.ensure(t, body))
+        if path == "/api/paperwork/assist":
+            return self.paperwork(lambda t: DOCS.assist(t, body))
+        if path == "/api/paperwork/connectors":
+            return self.paperwork(lambda t: DOCS.connector_action(t, body))
+        if path == "/api/paperwork/oauth/start":
+            back = str(body.get("return_to") or "")
+            s = self.session()
+            if s and re.fullmatch(r"#/project/JOB-\d{3}/documents(\?[A-Za-z0-9=&%._:-]*)?", back):
+                s["doc_return"] = back
+            return self.paperwork(lambda t: DOCS.oauth_start(t, body))
+        return self.send_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
 
     @staticmethod
     def new_session(data):
@@ -329,6 +394,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.redirect("https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params))
         if path == "/auth/google/callback":
             return self.google_callback(parse_qs(url.query))
+        if path.startswith("/api/paperwork/"):
+            return self.paperwork_get(path, parse_qs(url.query))
         if path == "/api/workspace":
             s = self.session()
             if not s:
@@ -424,7 +491,11 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.send_json({"error": "Email or password is not right for a demo account."}, HTTPStatus.UNAUTHORIZED)
             cookie = self.new_session({"mode": "demo", "email": pm["email"], "name": pm["name"], "pm_id": pm["pm_id"], "in_roster": True, "picture": None})
             return self.send_json({"ok": True}, cookie=cookie)
+        if path.startswith("/api/paperwork/"):
+            return self.paperwork_post(path, body)
         if path == "/api/logout":
+            if DOCS:
+                DOCS.logout(self.token())
             cookies = dict(p.strip().split("=", 1) for p in (self.headers.get("Cookie") or "").split(";") if "=" in p)
             with LOCK:
                 SESSIONS.pop(cookies.get("pm_session", ""), None)
@@ -440,6 +511,8 @@ def main():
     parser.add_argument("--port", type=int, default=PORT)
     args = parser.parse_args()
     PORT = args.port
+    global DOCS
+    DOCS = DocCenter(EDITS_DIR, PORT, SESSIONS, LOCK, [{"id": v["pm_id"], "name": v["name"], "email": v["email"]} for v in ROSTER.values()], google_token=access_token)
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     status = "Google sign-in ready" if google_config() else "Google sign-in not configured: demo accounts only (see pm/README.md)"
     print(f"EQORE PM platform on http://localhost:{PORT}/  ({status})")

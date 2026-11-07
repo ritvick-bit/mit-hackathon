@@ -2,7 +2,7 @@
 
 The project manager's side of the installation-coordination tool. A PM signs in with their work email, sees their own portfolio on a map, and opens a dashboard for each project. Contractors don't use a portal: they work by email, and the PM emails them from here through their own Gmail account.
 
-The look comes from the deployment workspace in `eqore-demo/` (it loads `eqore-demo/web/styles.css` directly). All projects, companies, people and documents are synthetic demo data (`data.js`).
+The look comes from the deployment workspace in `eqore-demo/` (it loads `eqore-demo/web/styles.css` directly), recoloured in `styles.css` to Black Pearl `#06162B` (headings, dark backgrounds), Abbey `#505455` (body text) and French Gray `#B9B9BB` (dividers, with lighter tints for backgrounds and cards). Red, yellow and green stay as status colours. The **document center is Yichang's** (Relay, from `eqore-demo/` on branch `codex/paperwork-coordination`), merged in as described below. All projects, companies, people and documents are synthetic demo data.
 
 ## Run
 
@@ -25,19 +25,26 @@ Use `localhost`, not `127.0.0.1` (the server redirects you): Google's sign-in se
   - **Calendar:** a month view of task starts, milestones, paperwork due dates and meetings, plus the PM's own Google Calendar when signed in with Google. Click it for the large view.
   - **Inbox:** paperwork emails (documents to sign or complete) scanned from Gmail, labelled by department (permitting, utility, contracts, procurement, engineering, construction). Click an email to open it in Gmail, or "Go to my email" for the inbox.
   - **To do:** delays, documents the PM has to fill out or sign, PM tasks, and contractors to chase, sorted by urgency.
-  - **Document center:** a link to the document center page. Yichang is building the full version; for now the page lists each document and its status.
+  - **Document center:** counts of complete, in-progress and waiting-on-you documents, and a link to the project's document center.
   - **Subcontractors:** their open items, delays and recent updates.
   - **Procurement:** delayed products and the next deliveries.
 - **Procurement page:** every product bought for the project (battery cabinets, inverter, switchgear, materials, and anything the PM adds), with supplier, PO, status, and order, promised and expected delivery dates. The step each product is needed for is shown too. Clicking a delivery date opens the calendar on that day, and deliveries appear on the calendar. Delays (later than promised), expected delays (arriving after the step that needs it starts) and overdue deliveries are red. A late delivery holds back the step that needs it, so the timeline and go-live move and the project turns red. Each product has a **Documents** popup (purchase order, spec sheet, delivery receipt, plus any added) linked to the document center, and an **Email supplier** button with a draft that fits the situation.
+- **Document center page:** Yichang's document center for this project (see below).
 - **Subcontractors page:** tasks by contractor, colour-coded against the timeline (done, in progress, at risk, pushed back by someone else's delay, delayed by their own problem). Each contractor has a **Documents** popup (signing history and who has to act next: PM, contractor or customer) and an **Email** button that drafts a message and sends it from the PM's Gmail. The **Contractor database** popup searches all companies by job type, task, name, state and availability. Availability counts the company's EQORE jobs on every project, their crew count, and work booked with other clients.
 
 ## Adding and editing
 
-The PM can add, edit and delete **products** (Procurement page), **documents** (Document center page, and the Edit button on any document card), and **contractors** (Subcontractors page, or "Add" in the contractor database). For contractors, the PM can edit contact details and choose which steps they own on the project, which moves that step and its paperwork to them. A brand-new supplier or company can be created from the product and contractor forms. Edits are saved per PM by the server in `pm/data/<PM id>.json` (git-ignored), and every timeline is recalculated. Delete that file to go back to the generated demo data.
+The PM can add, edit and delete **products** (Procurement page) and **contractors** (Subcontractors page, or "Add" in the contractor database). **Documents** can be added (Add document on a contractor's or product's Documents popup), and their details edited (Edit details on any document card): name, step, product, due date and notes. Everything else about a document, such as drafts, packages, signatures, revisions and voiding, happens in the document center. For contractors, the PM can edit contact details and choose which steps they own on the project, which moves that step and its paperwork to them. A brand-new supplier or company can be created from the product and contractor forms. Product and contractor edits are saved per PM by the server in `pm/data/<PM id>.json`, and every timeline is recalculated. Documents are saved in `pm/data/paperwork.json`. Both are git-ignored. Delete the `pm/data/` folder to go back to the generated demo data.
 
-## Document center hand-off
+## Document center (Yichang's Relay, merged)
 
-Subcontractor task chips and each document in a contractor's **Documents** popup link into the document center: a document opens that exact document, and a task chip opens the paperwork for that step. Today they open this app's document page, scrolled to the document and highlighted. When the full document center is ready, set `DOC_CENTER` in `app.js` to a function that builds its URL. It receives a query string with `project` plus one of `doc` (the document id), `step` (the step key) or `product` (the product id). Document ids are stable: `<JOB>:<step>:doc<n>`, for example `JOB-001:interconnection:doc1` (the interconnection agreement).
+`pm/doccenter/` is Yichang's document engine, copied unchanged from `eqore-demo/` (branch `codex/paperwork-coordination`, commit `1d6abe2`): `paperwork.py`, `paperwork_api.py`, `paperwork_connectors.py`, `paperwork_oauth.py`, `compliance.py` and `client_reference.py`. `doccenter.js` is his `web/paperwork.js`, with the same screens and actions, mounted in each project's **Document center** page. Its styles are in `doccenter.css`. The parts that connect it to this platform:
+
+- **`adapter.py`:** uses this platform's sign-in (no profile picker), stores records in `pm/data/paperwork.json` instead of SQLite, and seeds each project. The first time a PM signs in, the app sends a plan for each of their projects. The plan contains his 20-document template (D01–D20) with each document dated from the project's timeline. Documents for finished work are replayed as completed, current ones are sent or partly signed, and a reported problem leaves its step's document returned. Each product also gets a purchase order, a spec sheet (for equipment) and a delivery receipt. After seeding, his records are the only source of documents: to-dos, the inbox, calendar paperwork dates, and the subcontractor and product Documents popups all read them. The adapter also adds two actions to his set, `add_document` and `edit_document_details`.
+- **Small stand-ins** for the eqore-demo modules his code imported: `engine.py` (DomainError), `projects.py` (no delivery catalog), `storage.py` (JSON store with his optimistic-version contract) and `llm.py`. `llm.py` makes his reading summaries and email drafts run on **Claude** (`claude-opus-5-5`, Anthropic SDK) instead of ChatGPT via Codex. To turn it on, run `pip install anthropic` and set `ANTHROPIC_API_KEY`. Without them, the AI buttons are hidden, as in his version.
+- **Features:** a project overview with next actions and stages, a document register (filter by status, stage, timeline step or product), and document detail with the document, original emails, signing events and dependencies. Actions include editing drafts, preparing local packages, revisions, voiding, sample responses and recording emails. There are also contact pages with signed history, the compliance coverage review against EQORE's 20 requirements (track a requirement, set review dates), EQORE references, and project archiving. Email drafts can be saved, copied or downloaded, or sent through the platform's compose window with **Send with my email**.
+- **Integrations:** DocuSign sandbox drafts, sync and connection tests work as in his version, with OAuth callbacks on this server (`http://localhost:8790/api/paperwork/oauth/callback/docusign`). A PM signed in with Google already has Gmail connected, so his Gmail draft and reply-sync use that sign-in (the platform asks for `gmail.compose` for drafts).
+- **Links:** every link into the document center goes through `docLink`/`stepDocsLink` in `app.js`: `#/project/<JOB>/documents?doc=<id>`, `?step=<step key>` or `?product=<product id>`. Document ids are his: `D01`–`D20`, `C_<requirement>` for tracked compliance documents, `P-<product>-po` / `-spec` / `-receipt`, and `X<n>` for documents the PM adds.
 
 ## Connect Gmail and Google Calendar (about 5 minutes)
 
@@ -52,20 +59,23 @@ Subcontractor task chips and each document in a contractor's **Documents** popup
    ```
 6. Restart `python pm/server.py`. It prints `Google sign-in ready`.
 
-Permissions requested: sign-in (`openid email profile`), read Gmail (`gmail.readonly`), send as the PM (`gmail.send`), and read the calendar (`calendar.readonly`). Google tokens are held only in the server's memory for the session and never reach the browser. A Google account that isn't one of the demo PMs sees Jordan's sample portfolio (set `PM_DEFAULT_PORTFOLIO` to change it) with its own real inbox and calendar.
+Permissions requested: sign-in (`openid email profile`), read Gmail (`gmail.readonly`), send as the PM (`gmail.send`), create Gmail drafts for the document center (`gmail.compose`), and read the calendar (`calendar.readonly`). Google tokens are held only in the server's memory for the session and never reach the browser. A Google account that isn't one of the demo PMs sees Jordan's sample portfolio (set `PM_DEFAULT_PORTFOLIO` to change it) with its own real inbox and calendar.
 
 ## Tests
 
 ```sh
-node pm/model.test.js
+node pm/model.test.js                               # schedule, status, products, edits, document-center plan and feed
+python -m unittest discover -s pm/doccenter -v      # the document-center adapter
 ```
 
 ## Files
 
 | File | What it does |
 | --- | --- |
-| `server.py` | Serves the repo root, sign-in (demo accounts and Google OAuth), Gmail paperwork scan, Google Calendar, sending email, saving each PM's edits |
+| `server.py` | Serves the repo root, sign-in (demo accounts and Google OAuth), Gmail paperwork scan, Google Calendar, sending email, saving each PM's edits, and the document center API (`/api/paperwork/*`) |
+| `doccenter/` | Yichang's document engine (unchanged copies), the adapter, stand-ins and the adapter tests |
+| `doccenter.js`, `doccenter.css` | Yichang's document center screens, mounted in each project's Document center page |
 | `data.js` | Synthetic data: PMs, the 16-step template and its paperwork, companies (from the old contractor portal's database), 37 MA/CA projects, the products each project buys, reported delays |
-| `model.js` | Forecast (forward pass, including delivery dates) and slack (backward pass), project status, products, to-dos, documents, the PM's edits, calendar items, subcontractor updates, contractor availability |
+| `model.js` | Forecast (forward pass, including delivery dates) and slack (backward pass), project status, products, to-dos, the document-center seed plan and feed, the PM's edits, calendar items, subcontractor updates, contractor availability |
 | `app.js`, `index.html`, `styles.css` | The app |
 | `model.test.js` | Node tests for the model |

@@ -5,6 +5,7 @@
   const $app = document.getElementById("app"), $modal = document.getElementById("modal-root"), $toast = document.getElementById("toast");
   const today = new Date().toLocaleDateString("en-CA");
   let S = M.build(D, today);
+  let PAPER = null; // Yichang's document center: every document in this PM's projects (GET /api/paperwork/documents)
   let WS = { version: 0, data: {} }; // this PM's saved edits (products, documents, contractors)
   let me = null, map = null;
   const cache = { inbox: null, inboxError: null, gcal: {}, gcalError: null };
@@ -405,31 +406,36 @@
   }
   function docStatus(d) {
     if (d.status === "complete") return `<span class="badge green">Complete</span>`;
-    if (d.status === "not_started") return `<span class="badge outline">Not started</span>`;
+    if (d.paper && ["returned", "declined", "voided"].includes(d.paper.status)) return `<span class="badge red">${esc(d.paper.status === "voided" ? "Voided" : "Returned")}: revise</span>`;
+    if (d.status === "not_started") return `<span class="badge outline">${d.paper ? "Waiting on prerequisites" : "Not started"}</span>`;
     const who = d.next.label === "PM" ? "you" : d.next.label === "Customer" ? "customer" : company(d.next.id).name;
     return `<span class="badge ${d.next.label === "PM" ? "orange" : "gold"}">Waiting on ${esc(who)}</span>`;
   }
-  // Where a document (or a step's paperwork) opens. Today: this app's document page, scrolled to that document.
-  // When Yichang's document center lands, point DOC_CENTER at it; every link below (subcontractor documents,
-  // task chips, to-dos) goes through these two functions. Document ids are stable: "<JOB>:<step>:doc<n>".
-  const DOC_CENTER = null; // e.g. (q) => `/documents/?${q}`
+  // Where a document (or a step's or product's paperwork) opens: the project's Document center page, which mounts
+  // Yichang's document center (doccenter.js). Every link (subcontractor documents, task chips, products, to-dos) goes
+  // through these functions. Document ids are his: D01-D20, C_<requirement>, P-<product>-po/-spec/-receipt, X<n>.
+  const DOC_CENTER = null; // set to (query) => url to send links to a document center hosted elsewhere
   const docQuery = (p, extra) => new URLSearchParams({ project: p.id, ...extra }).toString();
   const docLink = (p, d) => (DOC_CENTER ? DOC_CENTER(docQuery(p, { doc: d.id })) : `#/project/${p.id}/documents?doc=${encodeURIComponent(d.id)}`);
   const stepDocsLink = (p, t) => (DOC_CENTER ? DOC_CENTER(docQuery(p, { step: t.key })) : `#/project/${p.id}/documents?step=${encodeURIComponent(t.key)}`);
 
   function documentsPage(p, el, query) {
-    const focus = query.get("doc"), step = query.get("step"), productId = query.get("product");
-    const stepTask = step && p.tasks.find((t) => t.key === step);
-    const prod = productId && p.products.find((x) => x.id === productId);
-    const rows = p.docs.filter((d) => (!stepTask || d.task === stepTask) && (!prod || d.product_id === prod.id));
-    el.innerHTML = `<div class="notice job"><p><strong>Document center</strong>Yichang is building the full document center (files, versions, e-signature). It will plug in here. For now this lists every document on the project and where it stands.</p></div>
-      <section class="panel"><div class="panel-header"><div><h2>${stepTask ? `Documents for ${esc(stepTask.name)}` : prod ? `Documents for ${esc(prod.name)}` : "Documents"}</h2>${stepTask || prod ? `<p><a href="#/project/${p.id}/documents">Show all documents</a></p>` : ""}</div>
-        <button class="button small" data-action="add-doc" data-project="${p.id}" ${stepTask ? `data-step="${stepTask.key}"` : ""} ${prod ? `data-product="${esc(prod.id)}"` : ""}>${I.plus}Add document</button></div><div class="panel-body">${docSummary(p)}</div>
-      <div class="table-wrap"><table class="data-table"><thead><tr><th>Document</th><th>Step</th><th>Department</th><th>Status</th><th>Due</th><th></th></tr></thead><tbody>
-      ${rows.sort((a, b) => ({ waiting: 0, not_started: 1, complete: 2 })[a.status] - ({ waiting: 0, not_started: 1, complete: 2 })[b.status]).map((d) => `<tr id="doc-${esc(d.id.replace(/:/g, "-"))}" class="${d.id === focus ? "focus" : ""}"><td><strong>${esc(d.name)}</strong><div class="subline">${d.flow.map((x) => (x.label === "PM" ? "You" : company(x.id).name)).join(" → ")}</div>${d.notes ? `<div class="subline">${esc(d.notes)}</div>` : ""}</td><td>${esc(d.task.name)}${d.product_id && p.products.find((x) => x.id === d.product_id) ? `<div class="subline"><a href="#/project/${p.id}/procurement">${esc(p.products.find((x) => x.id === d.product_id).name)}</a></div>` : ""}</td><td>${esc(d.department)}</td><td>${docStatus(d)}</td><td class="nowrap ${d.due != null && d.due < 0 && d.status !== "complete" ? "text-red" : ""}">${d.due != null ? fmtI(d.due) : d.history.length ? "done " + fmtI(d.history[d.history.length - 1].at) : ""}</td><td><button class="button ghost small" data-action="edit-doc" data-project="${p.id}" data-doc="${esc(d.id)}">${I.edit}Edit</button></td></tr>`).join("")}
-      </tbody></table></div>${!rows.length ? `<div class="empty-state compact panel-body"><p>No documents here yet.</p></div>` : ""}</section>`;
-    const row = focus && el.querySelector(`#doc-${CSS.escape(focus.replace(/:/g, "-"))}`);
-    if (row) setTimeout(() => row.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
+    el.innerHTML = `<div class="dc" id="dc-root"></div>`;
+    if (query.get("connected")) toast(`${query.get("connected") === "docusign" ? "DocuSign" : "Gmail"} connected. Test the connection in Integrations.`);
+    if (query.get("connect_error")) toast(query.get("connect_error"), true);
+    const label = (v) => (p.products.find((x) => x.id === v) || {}).name || (p.tasks.find((t) => t.key === v) || {}).name || v;
+    window.DocCenter.mount(document.getElementById("dc-root"), {
+      projectId: p.id, query, label,
+      onChange: () => { clearTimeout(documentsPage.t); documentsPage.t = setTimeout(syncPaper, 400); },
+      onSignedOut: () => boot("#/login"),
+      onCompose: (draft) => composeModal(draft),
+      onRoute: (r) => {
+        const q = r.view === "document" && r.docId ? `?doc=${encodeURIComponent(r.docId)}` : r.view === "register" && (r.stepFilter || r.productFilter) ? `?${r.productFilter ? "product=" + encodeURIComponent(r.productFilter) : "step=" + encodeURIComponent(r.stepFilter)}`
+          : r.view !== "project" && r.view !== "dashboard" ? `?view=${r.view}` : "";
+        const want = `#/project/${p.id}/documents${q}`;
+        if (location.hash !== want) history.replaceState(null, "", want);
+      },
+    });
   }
 
   // ---------- subcontractors ----------
@@ -484,17 +490,15 @@
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $modal.innerHTML) closeModal(); });
 
   function docCard(p, d) {
-    const step = (i) => {
-      const party = d.flow[i], who = party.label === "PM" ? "You (PM)" : party.label === "Customer" ? "Customer" : company(party.id).name;
-      const h = d.history[i];
-      const verb = i === d.flow.length - 1 || party.label === "PM" ? "sign" : "fill out";
-      if (h) return `<li class="done"><strong>${esc(who)}</strong> ${esc(h.action.toLowerCase())} · ${fmtI(h.at)}</li>`;
-      if (d.status === "waiting" && i === d.step) return `<li class="now"><strong>${esc(who)}</strong> needs to ${verb} · due ${fmtI(d.due)}</li>`;
-      return `<li><strong>${esc(who)}</strong> to ${verb}</li>`;
-    };
-    return `<div class="doc-card"><div class="doc-card-head"><strong>${esc(d.name)}</strong>${docStatus(d)}</div><small class="muted">${esc(d.task.name)} · ${esc(d.department)}${d.notes ? " · " + esc(d.notes) : ""}</small>
-      ${d.flow.length ? `<ol class="doc-steps">${d.flow.map((_, i) => step(i)).join("")}</ol>` : ""}
-      <div class="doc-card-actions"><a class="doc-open" href="${docLink(p, d)}">Open in document center ${I.ext}</a><button class="button ghost small" data-action="edit-doc" data-project="${p.id}" data-doc="${esc(d.id)}">${I.edit}Edit</button></div></div>`;
+    const RECIPIENT = { pending: "waiting", signed: "signed", accepted: "accepted", received: "received", declined: "declined", returned: "returned" };
+    const party = (x) => (x.label === "PM" ? "You (PM)" : company(x.id).name);
+    const steps = d.paper
+      ? d.flow.slice(1).map((x) => { const st = x.r ? x.r.status : "pending", at = x.r && (x.r.signed_at || x.r.responded_at);
+          return `<li class="${st === "pending" ? (d.next && d.next.id === x.id ? "now" : "") : ["declined", "returned"].includes(st) ? "returned" : "done"}"><strong>${esc(party(x))}</strong> ${esc(RECIPIENT[st] || st)}${at ? " · " + fmt(at.slice(0, 10)) : ""}</li>`; }).join("")
+      : d.flow.map((x, i) => { const h = d.history[i]; return h ? `<li class="done"><strong>${esc(party(x))}</strong> ${esc(h.action.toLowerCase())} · ${fmtI(h.at)}</li>` : `<li class="${d.status === "waiting" && i === d.step ? "now" : ""}"><strong>${esc(party(x))}</strong></li>`; }).join("");
+    return `<div class="doc-card"><div class="doc-card-head"><strong>${esc(d.name)}</strong>${docStatus(d)}</div><small class="muted">${d.paper ? esc(d.paper.id) + " · revision " + esc(d.paper.revision) + " · " : ""}${esc(d.task.name)} · ${esc(d.department)}${d.due != null ? " · due " + fmtI(d.due) : ""}${d.notes ? " · " + esc(d.notes) : ""}</small>
+      ${steps ? `<ol class="doc-steps">${steps}</ol>` : ""}${d.action_reason && d.status !== "complete" ? `<p class="tiny muted">${esc(d.action_reason)}</p>` : ""}
+      <div class="doc-card-actions"><a class="doc-open" href="${docLink(p, d)}">Open in document center ${I.ext}</a><button class="button ghost small" data-action="edit-doc" data-project="${p.id}" data-doc="${esc(d.id)}">${I.edit}Edit details</button></div></div>`;
   }
   function docsModal(p, companyId) {
     const c = company(companyId), x = M.subcontractors(S, p).find((s) => s.company.id === companyId);
@@ -584,7 +588,27 @@
   // ---------- saved edits (products, documents, contractors) ----------
   async function loadWorkspace() {
     try { WS = await api("/api/workspace"); } catch (e) { WS = { version: 0, data: {} }; toast("Couldn't load your saved changes: " + e.message, true); }
-    S = M.build(D, today, WS.data);
+    rebuild();
+  }
+  const rebuild = () => (S = M.build(D, today, WS.data, PAPER));
+  // Loads the document center's records. The first time a PM signs in, each project's records are created from its timeline.
+  async function syncPaper() {
+    try {
+      let feed = await api("/api/paperwork/documents");
+      const missing = mine().filter((p) => !feed.projects[p.id]);
+      if (missing.length) {
+        await api("/api/paperwork/ensure", { method: "POST", body: JSON.stringify({ projects: missing.map((p) => M.paperPlan(S, p)) }) });
+        feed = await api("/api/paperwork/documents");
+      }
+      PAPER = feed;
+    } catch (e) { toast("Couldn't load the document center: " + e.message, true); }
+    rebuild();
+  }
+  // One document-center action (his action contract, plus add_document / edit_document_details), then reload.
+  async function paperAction(action) {
+    const r = await api("/api/paperwork/action", { method: "POST", body: JSON.stringify({ expected_version: PAPER ? PAPER.version : 0, action }) });
+    if (PAPER) PAPER.version = r.version;
+    return r;
   }
   // Applies `mutate` to a copy of the saved edits, saves it, then rebuilds every timeline and re-renders.
   async function save(mutate, message) {
@@ -601,7 +625,7 @@
       if (e.status === 409) { closeModal(); render(); }
       return false;
     }
-    S = M.build(D, today, WS.data);
+    rebuild();
     cache.inbox = null;
     closeModal(); render(); toast(message);
     return true;
@@ -730,12 +754,13 @@
         <div class="form-actions span-2"><button class="button" type="submit">${pr ? "Save changes" : "Add product"}</button><button class="button ghost" type="button" data-action="close-modal">Cancel</button>
           ${pr ? `<button class="button danger push-right" type="button" data-role="delete">Delete product</button>` : ""}</div>
       </form>`, true);
-    const form = wireForm("product-form", (f) => {
+    const form = wireForm("product-form", async (f) => {
       if (!f.name.trim()) return toast("Give the product a name.", true);
       if (!f.supplier_id) return toast("Choose a supplier, or add a new one.", true);
       if (f.supplier_id === "__new" && !f.new_name.trim()) return toast("Give the new supplier a name.", true);
       if (f.quantity !== "" && !(+f.quantity >= 0)) return toast("Quantity must be a number.", true);
-      save((data) => {
+      let created = null;
+      const ok = await save((data) => {
         let supplier = f.supplier_id;
         if (supplier === "__new") {
           supplier = newId(data, "X-");
@@ -747,9 +772,10 @@
           status: f.status, po_number: f.po_number.trim(), order_date: f.order_date || (D.PRODUCT_STATUSES.indexOf(f.status) >= 2 ? today : ""), promised_date: f.promised_date, expected_date: f.expected_date,
           delivered_date: f.delivered_date || (["Delivered", "Installed"].includes(f.status) ? today : ""), tracking: f.tracking.trim(), notes: f.notes.trim() };
         if (pr) Object.assign(list.find((x) => x.id === pr.id), rec);
-        else list.push({ id: `${p.id}:p:${newId(data, "c")}`, key: null, custom: true, ...rec });
+        else list.push({ id: (created = `${p.id}:p:${newId(data, "c")}`), key: null, custom: true, ...rec });
         pe.products = list;
-      }, pr ? "Product saved. Timeline updated." : "Product added.");
+      }, pr ? "Product saved. Timeline updated." : "Product added. Its paperwork is in the document center.");
+      if (ok && created) await addProductPaper(p.id, created).catch((e) => toast("Product saved, but its documents weren't added: " + e.message, true));
     }, () => save((data) => {
       const pe = projEdits(data, p.id);
       pe.products = (pe.products || JSON.parse(JSON.stringify(p.products))).filter((x) => x.id !== pr.id);
@@ -758,46 +784,51 @@
     sel.addEventListener("change", () => (box.hidden = sel.value !== "__new"));
   }
 
-  // Add or edit a document (any document; generated ones keep their id so document-center links still work).
+  // Add a document to the document center, or edit its details (name, step, product, due date, notes). Its workflow
+  // (drafts, packages, signatures, revisions, voiding) happens in the document center itself.
   function docForm(p, d, preset) {
     preset = preset || {};
-    const parties = [{ id: p.pm_id, name: "You (PM)" }, { id: p.customer.id, name: `Customer: ${p.customer.name}` }]
+    const parties = [{ id: p.customer.id, name: `Customer: ${p.customer.name}` }]
       .concat(M.subcontractors(S, p).map((x) => ({ id: x.company.id, name: x.company.name })))
       .concat(p.products.map((pr) => ({ id: pr.supplier_id, name: company(pr.supplier_id).name })))
-      .filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i);
-    const v = d ? { name: d.name, step: d.task.key, product_id: d.product_id || "", status: d.status, next_id: d.next ? d.next.id : p.pm_id, due_date: dateOr(d.due), notes: d.notes || "" }
-      : { name: "", step: preset.step || (preset.product_id ? "procurement" : (p.current[0] || p.tasks[0]).key), product_id: preset.product_id || "", status: "waiting", next_id: preset.next_id || p.pm_id, due_date: "", notes: "" };
-    openModal(d ? `Edit document: ${d.name}` : "Add document", `
+      .filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i && S.byCompany[x.id]);
+    const v = d ? { name: d.name, step: d.task.key, product_id: d.product_id || "", due_date: dateOr(d.due), notes: d.notes || "" }
+      : { name: "", step: preset.step || (preset.product_id ? "procurement" : (p.current[0] || p.tasks[0]).key), product_id: preset.product_id || "", kind: "record",
+          to: preset.next_id && preset.next_id !== p.pm_id ? preset.next_id : (parties[0] || {}).id, due_date: dateOr(Math.max(0, (p.current[0] || p.tasks[0]).fc.f)), notes: "" };
+    openModal(d ? `Edit details: ${d.name}` : "Add document", `
       <form id="doc-form" class="form-grid" novalidate>
         ${field("Document", `<input name="name" required value="${esc(v.name)}" placeholder="e.g. Lien waiver">`, true)}
+        ${d ? "" : field("Type", `<select name="kind">${opt("record", "Record (received from them)", true)}${opt("review", "Review (they review and accept)")}${opt("esign", "Signature (they sign)")}</select>`)}
+        ${d ? "" : field("From / signed by", `<select name="to">${parties.map((x) => opt(x.id, x.name, x.id === v.to)).join("")}</select>`)}
         ${field("Step", `<select name="step">${D.TEMPLATE.map((t) => opt(t.key, t.name, t.key === v.step)).join("")}</select>`)}
         ${field("Product (optional)", `<select name="product_id">${opt("", "None", !v.product_id)}${p.products.map((pr) => opt(pr.id, pr.name, pr.id === v.product_id)).join("")}</select>`)}
-        ${field("Status", `<select name="status">${opt("not_started", "Not started", v.status === "not_started")}${opt("waiting", "In progress", v.status === "waiting")}${opt("complete", "Complete", v.status === "complete")}</select>`)}
-        ${field("Waiting on", `<select name="next_id">${parties.map((x) => opt(x.id, x.name, x.id === v.next_id)).join("")}</select>`)}
         ${field("Due", `<input name="due_date" type="date" value="${esc(v.due_date)}">`)}
         ${field("Notes", `<textarea name="notes" rows="3">${esc(v.notes)}</textarea>`, true)}
-        <p class="tiny muted span-2">Documents waiting on you show up in your to-do list.</p>
-        <div class="form-actions span-2"><button class="button" type="submit">${d ? "Save changes" : "Add document"}</button><button class="button ghost" type="button" data-action="close-modal">Cancel</button>
-          ${d ? `<button class="button danger push-right" type="button" data-role="delete">Remove document</button>` : ""}</div>
+        <p class="tiny muted span-2">${d ? "Drafts, packages, signatures, revisions and voiding happen in the document center." : "The document is added to the document center for you to prepare and send. It shows up in your to-do list until it's done."}</p>
+        <div class="form-actions span-2"><button class="button" type="submit">${d ? "Save details" : "Add document"}</button><button class="button ghost" type="button" data-action="close-modal">Cancel</button>
+          ${d ? `<a class="button secondary push-right" href="${docLink(p, d)}">${I.doc}Open in document center</a>` : ""}</div>
       </form>`, true);
-    wireForm("doc-form", (f) => {
+    wireForm("doc-form", async (f) => {
       if (!f.name.trim()) return toast("Give the document a name.", true);
-      save((data) => {
-        const pe = projEdits(data, p.id);
-        const rec = { name: f.name.trim(), step: f.step, product_id: f.product_id || null, status: f.status, next_id: f.next_id, due_date: f.due_date, notes: f.notes.trim(),
-          completed_date: f.status === "complete" ? (d && d.status === "complete" ? (d.history.length ? S.cal.date(d.history[d.history.length - 1].at) : today) : today) : "" };
-        if (d && !d.custom) (pe.doc_edits = pe.doc_edits || {})[d.id] = rec;
+      if (!f.due_date) return toast("Set a due date.", true);
+      try {
+        if (d) await paperAction({ type: "edit_document_details", project_id: p.id, doc_id: d.id, title: f.name.trim(), step: f.step, product_id: f.product_id || null, due_at: f.due_date, notes: f.notes.trim() });
         else {
-          pe.docs_added = pe.docs_added || [];
-          if (d) Object.assign(pe.docs_added.find((x) => x.id === d.id), rec);
-          else pe.docs_added.push({ id: `${p.id}:doc:${newId(data, "c")}`, ...rec });
+          const c = company(f.to);
+          await paperAction({ type: "add_document", project_id: p.id, title: f.name.trim(), kind: f.kind, step: f.step, product_id: f.product_id || null, due_at: f.due_date, notes: f.notes.trim(),
+            phase: f.product_id ? "Procurement" : D.DEPARTMENTS[f.step], recipients: [{ company_id: c.id, name: c.contact && !/desk|team|manager/i.test(c.contact) ? c.contact : c.name, organization: c.name, email: c.email || "", role: D.TRADES[c.trade] || "Contact" }] });
         }
-      }, d ? "Document saved." : "Document added.");
-    }, () => save((data) => {
-      const pe = projEdits(data, p.id);
-      if (d.custom) pe.docs_added = (pe.docs_added || []).filter((x) => x.id !== d.id);
-      else { pe.docs_removed = (pe.docs_removed || []).concat(d.id); if (pe.doc_edits) delete pe.doc_edits[d.id]; }
-    }, "Document removed."));
+      } catch (e) { return toast(e.message, true); }
+      await syncPaper(); closeModal(); render(); toast(d ? "Document details saved." : "Document added to the document center.");
+    });
+  }
+  // A new product gets the same paperwork the generated ones have: purchase order, spec sheet (equipment) and delivery receipt.
+  async function addProductPaper(projectId, productId) {
+    const q = project(projectId), plan = M.paperPlan(S, q);
+    for (const r of plan.documents.filter((x) => x.product_id === productId)) {
+      await paperAction({ type: "add_document", project_id: projectId, doc_id: r.id, title: r.title, kind: r.kind, phase: r.phase, step: r.step, product_id: productId, due_at: r.due_at, recipients: r.recipients });
+    }
+    await syncPaper(); render();
   }
 
   // Add a contractor (from the database or a new company) or edit one: contact details and which steps they own.
@@ -863,7 +894,7 @@
     if (!el) return;
     const a = el.dataset.action, p = el.dataset.project && project(el.dataset.project);
     if (a === "close-modal") return closeModal();
-    if (a === "logout") { await api("/api/logout", { method: "POST", body: "{}" }).catch(() => {}); me = { signed_in: false, google_configured: me.google_configured }; cache.inbox = null; cache.gcal = {}; WS = { version: 0, data: {} }; S = M.build(D, today); location.hash = "#/login"; return render(); }
+    if (a === "logout") { await api("/api/logout", { method: "POST", body: "{}" }).catch(() => {}); me = { signed_in: false, google_configured: me.google_configured }; cache.inbox = null; cache.gcal = {}; WS = { version: 0, data: {} }; PAPER = null; S = M.build(D, today); location.hash = "#/login"; return render(); }
     if (a === "open-calendar") { openModal(`Calendar: ${p.name}`, `<div id="modal-cal"></div>`, true); return bigCalendar(p, document.getElementById("modal-cal"), monthStart(today)); }
     if (a === "docs") return docsModal(p, el.dataset.company);
     if (a === "email") return composeModal(draftFor(p, el.dataset.company));
@@ -886,7 +917,7 @@
 
   async function boot(hash) {
     try { me = await api("/api/me"); } catch (e) { me = { signed_in: false, google_configured: false }; }
-    if (me.signed_in) await loadWorkspace();
+    if (me.signed_in) { await loadWorkspace(); await syncPaper(); }
     if (hash) { if (location.hash === hash) render(); else location.hash = hash; return; }
     render();
   }

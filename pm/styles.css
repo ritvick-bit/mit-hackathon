@@ -1,5 +1,22 @@
 /* EQORE PM platform additions. Base look and components come from ../eqore-demo/web/styles.css (same tokens). */
-:root{--st-green:#2f9e6b;--st-yellow:#e0a526;--st-red:#c8452f}
+/* Colour scheme: Black Pearl #06162B (headings, dark backgrounds), Abbey #505455 (body text, secondary elements),
+   French Gray #B9B9BB (dividers; tints of it for light backgrounds and cards). Red / yellow / green stay as status colours. */
+:root{--st-green:#2f9e6b;--st-yellow:#e0a526;--st-red:#c8452f;
+  --pearl:#06162B;--abbey:#505455;--french:#B9B9BB;
+  --navy:var(--pearl);--navy-light:#1c2c42;--ink:var(--pearl);--body:var(--abbey);--muted:var(--abbey);
+  --line:var(--french);--paper:#e3e3e4;--surface:#f4f4f5;color:var(--abbey)}
+h1,h2,h3,h4,strong{color:var(--pearl)}
+.sidebar strong,.login-side strong,.side-project strong,.toast strong,.button strong,.badge strong{color:inherit}
+a,.link-date,.doc-open,.dc .text-link{color:var(--pearl)}
+.topbar{background:var(--surface)}
+.brand-mark{background:var(--french);color:var(--pearl)}
+.nav-link.active:before{background:var(--french)}
+.subtab.active{border-color:var(--pearl)}
+.data-table th{background:var(--paper);color:var(--abbey)}
+.button.secondary{border-color:var(--french)}
+.segmented button.on{color:var(--pearl)}
+.tl-track{background:var(--french)}
+.progress-fill{background:var(--pearl)}
 body{background:var(--paper)}
 [hidden]{display:none!important}
 body.modal-open{overflow:hidden}

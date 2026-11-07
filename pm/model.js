@@ -37,7 +37,8 @@
   // ---------- Build the portfolio ----------
   // ov: the PM's saved edits (custom companies, contact edits, and per project: products, step owners,
   // added contractors, added and edited documents). Everything else is generated from data.js.
-  function build(D, today, ov) {
+  // paper: the document center's feed (GET /api/paperwork/documents). When present, it is the only source of documents.
+  function build(D, today, ov, paper) {
     ov = normalize(ov);
     const cal = calendar(today);
     const companies = D.COMPANIES.map(([id, name, trade, state, city, lat, lng, crews, day_rate, rating, certifications, radius_mi, contact]) => ({
@@ -89,7 +90,7 @@
       });
     });
 
-    const state = { D, cal, pms, companies, byCompany, projects, tasks, rel, ov };
+    const state = { D, cal, pms, companies, byCompany, projects, tasks, rel, ov, paper: paper && paper.projects ? paper : null };
     forecast(state);
     // Products: the PM's saved list, or generated from where the project is. Undelivered products hold back the step they're needed for.
     projects.forEach((p) => {
@@ -285,7 +286,7 @@
     p.step_index = Math.max(0, ts.findIndex((t) => !t.done));
     p.issues = ts.filter((t) => t.issue).map((t) => ({ task: t, ...t.issue, owner_id: t.owner_id }));
     p.product_states = Object.fromEntries(p.products.map((pr) => [pr.id, productState(state, p, pr)]));
-    p.docs = applyDocEdits(state, p, documents(state, p).concat(productDocs(state, p)));
+    p.docs = state.paper && state.paper.projects[p.id] ? paperDocs(state, p) : applyDocEdits(state, p, documents(state, p).concat(productDocs(state, p)));
     p.todos = todos(state, p);
     const pmTodo = p.todos.find((x) => x.urgency <= 2 && x.kind !== "chase");
     if (p.slip > 0) p.status = "red";
@@ -333,7 +334,7 @@
     const out = [];
     p.issues.forEach((x) => out.push({ kind: "issue", urgency: 1, due: x.reported, title: `Delay reported: ${x.task.name}`, detail: x.text, party: x.owner_id, task: x.task }));
     p.docs.filter((d) => d.status === "waiting" && d.next.label === "PM").forEach((d) =>
-      out.push({ kind: "doc", urgency: urgencyOf(d.due), due: d.due, title: `${d.step === 0 ? "Fill out" : "Sign"}: ${d.name}`, detail: d.task.name === d.department ? `${d.task.name}.` : `${d.task.name}. ${d.department}.`, doc: d, party: null }));
+      out.push({ kind: "doc", urgency: urgencyOf(d.due), due: d.due, title: d.action_title || `${d.step === 0 ? "Fill out" : "Sign"}: ${d.name}`, detail: d.task.name === d.department ? `${d.task.name}.` : `${d.task.name}. ${d.department}.`, doc: d, party: null }));
     p.tasks.filter((t) => !t.done && t.role === "eqore" && t.key !== "controls" && t.fc.s <= 5).forEach((t) =>
       out.push({ kind: "task", urgency: urgencyOf(t.fc.s <= 0 ? t.fc.f : t.fc.s), due: t.fc.s <= 0 ? t.fc.f : t.fc.s, title: t.key === "precon" ? "Run pre-construction scheduling: book crew, crane and the shutdown window" : t.name, detail: t.phase, task: t }));
     p.products.forEach((pr) => {
@@ -461,9 +462,107 @@
       .sort((a, b) => (b.available - a.available) || ((a.distance || 0) - (b.distance || 0)) || a.company.name.localeCompare(b.company.name));
   }
 
+  // ---------- Document center (Yichang's records) ----------
+  // His documents, in the shape the dashboards, to-dos, inbox and popups use.
+  function paperDocs(state, p) {
+    const feed = state.paper.projects[p.id], cal = state.cal;
+    const people = Object.fromEntries(feed.stakeholders.map((x) => [x.id, x]));
+    const idx = (iso) => (iso ? cal.index(String(iso).slice(0, 10)) : null);
+    const partyOf = (sid) => {
+      if (sid === p.pm_id) return { id: p.pm_id, label: "PM", role: "PM" };
+      const st = people[sid] || { id: sid, name: sid };
+      if (st.company_id && state.byCompany[st.company_id]) {
+        const c = state.byCompany[st.company_id];
+        return { id: c.id, label: /^CUST-/.test(c.id) ? "Customer" : "Contractor", role: c.trade, stakeholder: sid };
+      }
+      if (!state.byCompany[sid]) state.byCompany[sid] = { id: sid, name: st.organization && st.organization !== st.name ? `${st.name} (${st.organization})` : st.name,
+        contact: st.name, email: st.email || "", trade: st.organization === "EQORE" ? "eqore" : "contact", bookings: [], crews: 1, certifications: [], city: "", state: "" };
+      return { id: sid, label: st.organization === "Customer" ? "Customer" : "Contractor", role: "contact", stakeholder: sid };
+    };
+    const ACTION = { esign: "Signed", review: "Review accepted", record: "Record received" };
+    return feed.documents.map((d) => {
+      const owner = partyOf(d.owner_id);
+      const recips = d.recipients.map((r) => ({ ...partyOf(r.id), r }));
+      const flow = [owner].concat(recips.filter((x, i) => x.id !== owner.id && recips.findIndex((y) => y.id === x.id) === i));
+      let status = "waiting", next = owner;
+      if (d.status === "completed") { status = "complete"; next = null; }
+      else if (d.status === "blocked") status = "not_started";
+      else if (["sent", "partially_signed"].includes(d.status)) next = recips.find((x) => x.r.status === "pending") || owner;
+      const history = recips.filter((x) => x.r.signed_at || x.r.responded_at)
+        .map((x) => ({ at: idx(x.r.signed_at || x.r.responded_at), by: x.id, action: x.r.status === "pending" ? "Responded" : ACTION[d.kind] }))
+        .sort((a, b) => a.at - b.at);
+      const task = p.tasks.find((t) => t.key === d.step) || p.tasks.find((t) => t.key === "procurement");
+      return { id: d.id, name: d.title, task, project_id: p.id, flow, step: next ? Math.max(0, flow.findIndex((x) => x.id === next.id)) : flow.length,
+        status, next, due: status === "complete" ? null : idx(d.due_at), history, department: d.phase, product_id: d.product_id || null, notes: d.notes || "",
+        kind: d.kind, paper: d, action_title: d.next_action && d.next_action.title, action_reason: d.next_action && d.next_action.reason,
+        sent_at: d.sent_at ? idx(d.sent_at) : -1 };
+    });
+  }
+
+  // What the document center needs to create a project's records the first time: who the stakeholders are, and for
+  // each document its step, due date, whether it is already complete and whether it is under way, from the timeline.
+  function paperPlan(state, p) {
+    const { D, cal } = state;
+    const task = (k) => p.tasks.find((t) => t.key === k);
+    const point = (k, frac) => { const t = task(k); return Math.round(t.fc.s + frac * (t.fc.f - t.fc.s)); };
+    const issueOn = (k) => p.issues.find((x) => x.task.key === k);
+    const at = {};
+    Object.keys(D.DOC_MAP).forEach((id) => {
+      const [k, frac] = D.DOC_MAP[id];
+      let v = point(k, frac);
+      if (issueOn(k) && !task(k).done) v = Math.max(v, 0); // a reported problem on the step keeps its paperwork open
+      (D.DOC_PREREQS[id] || []).forEach((q) => (v = Math.max(v, at[q])));
+      at[id] = v;
+    });
+    const documents = Object.keys(D.DOC_MAP).map((id) => {
+      const [k] = D.DOC_MAP[id], t = task(k), complete = at[id] < 0;
+      const ready = (D.DOC_PREREQS[id] || []).every((q) => at[q] < 0);
+      let opening = null, opening_text;
+      if (!complete && ready && t.fc.s <= 0) {
+        const issue = issueOn(k);
+        if (issue) { opening = "returned"; opening_text = issue.text; }
+        else opening = D.DOC_KINDS[id] === "esign" && hash(p.id + id) % 2 ? "partial" : "sent";
+      }
+      return { id, step: k, due_at: cal.date(at[id]), completed_at: complete ? cal.date(at[id]) : null, opening, opening_text };
+    });
+    const company = (id, role, name) => { const c = state.byCompany[id]; return c ? { name: name || c.contact || c.name, role, organization: c.name, email: c.email, company_id: c.id } : undefined; };
+    const proc = task("procurement");
+    const past = (d) => (d && d < cal.today ? d : null);
+    p.products.forEach((pr) => {
+      const rank = productRank(pr), sup = state.byCompany[pr.supplier_id] || {};
+      const who = { company_id: pr.supplier_id, name: sup.contact || sup.name || "Supplier", organization: sup.name || "Supplier", email: sup.email || "", role: D.TRADES[sup.trade] || "Supplier" };
+      const base = "P-" + pr.id.split(":p:")[1];
+      const orderDue = pr.order_date || cal.date(Math.max(0, proc.fc.s));
+      documents.push({ id: `${base}-po`, title: `Purchase order: ${pr.name}`, kind: "esign", phase: "Procurement", owner_role: "pm", recipient_roles: ["commercial"], recipients: [who],
+        step: "procurement", product_id: pr.id, due_at: orderDue, completed_at: rank >= 2 ? past(pr.order_date) : null, opening: rank === 1 ? "draft" : null });
+      if (["Battery storage", "Inverter / PCS", "Switchgear", "Transformer"].includes(pr.category))
+        documents.push({ id: `${base}-spec`, title: `Spec sheet and certification: ${pr.name}`, kind: "record", phase: "Procurement", owner_role: "pm", recipients: [who],
+          step: "equipment", product_id: pr.id, due_at: orderDue, completed_at: rank >= 1 ? past(pr.order_date ? addDays(pr.order_date, -3) : addDays(cal.today, -1)) : null });
+      documents.push({ id: `${base}-receipt`, title: `Bill of lading and delivery receipt: ${pr.name}`, kind: "record", phase: "Procurement", owner_role: "pm", recipients: [who],
+        step: pr.needed_for, product_id: pr.id, due_at: pr.expected_date || pr.promised_date || cal.date(Math.max(0, proc.fc.f)),
+        completed_at: rank >= 5 ? past(pr.delivered_date || pr.expected_date) : null, opening: rank === 4 ? "sent" : null });
+    });
+    const inspector = company(`IN-${p.state}`, "AHJ record issuer");
+    return {
+      id: p.id, pm_id: p.pm_id, name: p.name, site: `${p.city}, ${p.state}`,
+      profile: { system_power_kw: p.kw, system_energy_kwh: p.kwh, contract_date: cal.date(task("contract").fc.f), target_handover_date: p.target_date,
+        utility: (state.byCompany[p.utility_id] || {}).name, scope: `Behind-the-meter battery (${p.kw} kW / ${p.kwh} kWh): pad, placement, electrical tie-in, commissioning and utility permission to operate.`,
+        site_constraints: [] },
+      stakeholders: {
+        customer: { name: "Customer signatory", role: "Customer signatory", organization: p.name, email: p.customer.email, company_id: p.customer.id },
+        facilities: { name: "Facilities manager", role: "Facilities and operations lead", organization: p.name, email: p.customer.email, company_id: p.customer.id },
+        epc: company(p.parties.civil, "Site works lead (EPC)"), engineer: company(p.parties.engineering, "Responsible design engineer"),
+        electrician: company(task("electrical").owner_id, "Electrical contractor"), rigger: company(task("placement").owner_id, "Rigging supervisor"),
+        supplier: company("SU-QPACK", "Equipment supplier"), ahj: inspector, fire: inspector && { ...inspector, name: "Fire marshal", role: "Fire record issuer" },
+        utility: company(p.utility_id, "Utility record issuer", "Interconnection desk"),
+      },
+      documents,
+    };
+  }
+
   const portfolio = (state, pmId) => state.projects.filter((p) => p.pm_id === pmId);
 
-  const api = { build, forecast, calendar, portfolio, subcontractors, taskState, productState, productRank, seedProducts, party, PRODUCT_STATUSES, updates, calendarItems, demoInbox, searchCompanies, earliestFree, busy,
+  const api = { build, forecast, calendar, portfolio, paperPlan, paperDocs, subcontractors, taskState, productState, productRank, seedProducts, party, PRODUCT_STATUSES, updates, calendarItems, demoInbox, searchCompanies, earliestFree, busy,
     URGENCY, urgencyOf, miles, addDays, addWorkdays, nextWorkday, isWorkday, slug };
   root.EQORE_PM = api;
   if (typeof module !== "undefined") module.exports = api;

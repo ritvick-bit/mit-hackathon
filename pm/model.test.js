@@ -118,4 +118,43 @@ assert.ok(!q8.docs.some((d) => d.id === "JOB-008:civil:doc0"));
 // Edits for one project leave the others alone.
 assert.deepStrictEqual(S2.projects.filter((p) => p.status === "red").map((p) => p.id).sort(), red.concat("JOB-008").sort());
 
+// Document center seed plan: Yichang's 20 documents plus each product's paperwork, dated from the timeline.
+const plan3 = M.paperPlan(S, P("JOB-003"));
+assert.strictEqual(plan3.pm_id, "PM-JORDAN");
+assert.deepStrictEqual(plan3.documents.slice(0, 20).map((d) => d.id), Object.keys(D.DOC_MAP));
+const at3 = Object.fromEntries(plan3.documents.map((d) => [d.id, d]));
+Object.entries(D.DOC_PREREQS).forEach(([id, pre]) => pre.forEach((q) => assert.ok(at3[q].due_at <= at3[id].due_at, `${id} is due before its prerequisite ${q}`)));
+plan3.documents.filter((d) => d.completed_at).forEach((d) => assert.ok(d.completed_at < S.cal.today));
+assert.ok(at3.D01.completed_at && !at3.D20.completed_at, "contract paperwork done, handover not yet");
+assert.ok(P("JOB-003").products.every((pr) => plan3.documents.some((d) => d.product_id === pr.id && /^Purchase order/.test(d.title))));
+assert.strictEqual(plan3.stakeholders.supplier.company_id, "SU-QPACK");
+// A reported problem leaves that step's paperwork returned.
+const plan4 = M.paperPlan(S, P("JOB-004"));
+assert.ok(plan4.documents.some((d) => d.step === "final_insp" && d.opening === "returned" && /Fire marshal/.test(d.opening_text)));
+
+// Converting the document center's feed: statuses, who is next, and the PM's to-dos.
+const feed = { version: 3, projects: { "JOB-008": {
+  status: "active",
+  stakeholders: [{ id: "PM-JORDAN", name: "Jordan Lee" }, { id: "JOB-008__supplier", name: "Elena Marsh", organization: "QorePack", company_id: "SU-QPACK" },
+                 { id: "JOB-008__commercial", name: "Morgan Chen", organization: "EQORE" }],
+  documents: [
+    { id: "D11", title: "Supplier order acceptance", kind: "esign", phase: "Reviews and procurement", status: "partially_signed", owner_id: "PM-JORDAN", due_at: "2026-11-12T17:00:00-05:00", revision: 1, step: "procurement",
+      next_action: { title: "Follow up on Supplier order acceptance", reason: "Waiting for Elena Marsh on revision 1." },
+      recipients: [{ id: "JOB-008__commercial", status: "signed", signed_at: "2026-11-05T17:00:00-05:00" }, { id: "JOB-008__supplier", status: "pending" }], signed_history: [] },
+    { id: "D12", title: "EPC and electrical scope agreement", kind: "esign", phase: "Reviews and procurement", status: "ready", owner_id: "PM-JORDAN", due_at: "2026-11-10T17:00:00-05:00", revision: 1, step: "procurement",
+      next_action: { title: "Prepare EPC and electrical scope agreement", reason: "Its current prerequisite records are complete." }, recipients: [{ id: "JOB-008__commercial", status: "pending" }], signed_history: [] },
+    { id: "D20", title: "Customer and fleet handoff acceptance", kind: "esign", phase: "Handoff", status: "blocked", owner_id: "PM-JORDAN", due_at: "2027-01-20T17:00:00-05:00", revision: 1, step: "energize", recipients: [], signed_history: [] },
+    { id: "P-cabinets-po", title: "Purchase order: Battery cabinets", kind: "esign", phase: "Procurement", status: "completed", owner_id: "PM-JORDAN", due_at: "2026-09-01T17:00:00-05:00", revision: 1, step: "procurement", product_id: "JOB-008:p:cabinets",
+      recipients: [{ id: "JOB-008__supplier", status: "signed", signed_at: "2026-09-01T17:00:00-05:00" }], signed_history: [] },
+  ] } } };
+const S3 = M.build(D, "2026-11-09", {}, feed), p8b = S3.projects.find((p) => p.id === "JOB-008");
+const byId = Object.fromEntries(p8b.docs.map((d) => [d.id, d]));
+assert.strictEqual(p8b.docs.length, 4, "the feed replaces the generated documents");
+assert.strictEqual(byId.D11.status, "waiting"); assert.strictEqual(byId.D11.next.id, "SU-QPACK"); assert.strictEqual(byId.D11.next.label, "Contractor");
+assert.strictEqual(byId.D11.history[0].by, "JOB-008__commercial", "an EQORE contact without a company becomes its own party");
+assert.strictEqual(byId.D12.next.label, "PM"); assert.strictEqual(byId.D20.status, "not_started"); assert.strictEqual(byId["P-cabinets-po"].status, "complete");
+assert.ok(p8b.todos.some((x) => x.kind === "doc" && x.title === "Prepare EPC and electrical scope agreement" && x.urgency === 2));
+assert.ok(M.subcontractors(S3, p8b).find((x) => x.company.id === "SU-QPACK").docs.some((d) => d.id === "D11"));
+assert.strictEqual(p8b.docs.filter((d) => d.product_id === "JOB-008:p:cabinets").length, 1);
+
 console.log("pm model tests passed", JSON.stringify(counts));

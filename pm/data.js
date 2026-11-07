@@ -168,6 +168,23 @@
   const PRODUCT_STATUSES = ["Not ordered", "Quoted", "Ordered", "In production", "Shipped", "Delivered", "Installed"];
   const PRODUCT_CATEGORIES = ["Battery storage", "Inverter / PCS", "Switchgear", "Transformer", "Civil materials", "Electrical materials", "Site safety", "Controls", "Other"];
 
+  // ---------- Document center (Yichang's 20-document template, D01-D20) ----------
+  // Which step of the timeline each document belongs to, and how far through that step it is completed
+  // (0 = at the step's start, 1 = at its finish). Used to seed each project's documents to match where it is.
+  const DOC_MAP = {
+    D01: ["contract", 1], D02: ["equipment", 0], D03: ["engineering", 0.3], D04: ["engineering", 1], D05: ["permitting", 0.2],
+    D06: ["permitting", 0.15], D07: ["permitting", 1], D08: ["interconnection", 0.1], D09: ["interconnection", 0.55], D10: ["interconnection", 0.8],
+    D11: ["procurement", 0.1], D12: ["procurement", 0.3], D13: ["precon", 1], D14: ["precon", 1], D15: ["placement", 0],
+    D16: ["tie_in", 0], D17: ["final_insp", 0], D18: ["commissioning", 1], D19: ["pto", 1], D20: ["energize", 1],
+  };
+  // Prerequisites inside the template (mirrors pm/doccenter/paperwork.py TEMPLATE) so seeded dates respect them.
+  const DOC_PREREQS = {
+    D02: ["D01"], D03: ["D02"], D04: ["D03"], D05: ["D04"], D06: ["D04"], D07: ["D06"], D08: ["D04"], D09: ["D08"], D10: ["D09"],
+    D11: ["D04"], D12: ["D04"], D13: ["D11", "D12"], D14: ["D12"], D15: ["D07", "D10", "D13", "D14"], D16: ["D05", "D12"],
+    D17: ["D15", "D16"], D18: ["D17"], D19: ["D18"], D20: ["D19"],
+  };
+  const DOC_KINDS = { D05: "esign", D11: "esign", D12: "esign", D16: "esign", D20: "esign" };
+
   // ---------- Problems already reported (these are what turn a project red) ----------
   // project, step, extra work days, reported N work days ago (by the company that owns the step), what happened
   const ISSUES = [
@@ -192,7 +209,7 @@
     { offset: 10, time: "09:00", title: "Portfolio stand-up", project: null },
   ];
 
-  const data = { PMS, DEMO_PASSWORD, TEMPLATE, DOCS, DEPARTMENTS, TRADES, COMPANIES, OUTSIDE_BOOKINGS, PROJECTS, PRODUCTS, PRODUCT_STATUSES, PRODUCT_CATEGORIES, ISSUES, MEETINGS };
+  const data = { PMS, DEMO_PASSWORD, TEMPLATE, DOCS, DEPARTMENTS, TRADES, COMPANIES, OUTSIDE_BOOKINGS, PROJECTS, PRODUCTS, PRODUCT_STATUSES, PRODUCT_CATEGORIES, DOC_MAP, DOC_PREREQS, DOC_KINDS, ISSUES, MEETINGS };
   root.EQORE_PM_DATA = data;
   if (typeof module !== "undefined") module.exports = data;
 })(typeof window !== "undefined" ? window : globalThis);
