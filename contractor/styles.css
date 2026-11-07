@@ -1,0 +1,48 @@
+/* Contractor portal. Colors and base layout come from ../command-center/styles.css; everything here is ct- prefixed. */
+.ct-who { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.ct-who select { font: inherit; font-size: 14px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; max-width: min(360px, 70vw); }
+.ct-link { color: var(--brand); font-weight: 600; text-decoration: none; padding: 4px 10px; border: 1px solid var(--line); border-radius: 99px; }
+.ct-link:hover { border-color: var(--brand); }
+.tile.ct-alert .v { color: var(--red); }
+
+.ct-main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; padding: 12px 16px 32px; }
+@media (max-width: 860px) { .ct-main { grid-template-columns: 1fr; } }
+.ct-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.ct-head h2, .ct-side h2 { font-size: 15px; }
+.ct-muted { color: var(--muted); font-size: 12px; }
+.ct-empty { color: var(--muted); padding: 24px; text-align: center; background: var(--panel); border: 1px dashed var(--line); border-radius: 10px; }
+
+.ct-items { display: grid; gap: 8px; }
+.ct-item { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.ct-item.hard { border-left-color: var(--red); }
+.ct-item.warn { border-left-color: var(--amber); }
+.ct-item.done { opacity: .7; }
+.ct-row { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.ct-job { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ct-job b { color: var(--ink); }
+.ct-title { font-weight: 600; margin-top: 2px; }
+.ct-due { text-align: right; font-weight: 600; white-space: nowrap; }
+.ct-meta { justify-content: flex-start; flex-wrap: wrap; margin-top: 6px; font-size: 12px; }
+.ct-state { background: var(--bg); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; }
+.ct-issue { color: var(--red); font-weight: 600; }
+.ct-item.warn .ct-issue { color: var(--amber); }
+
+.ct-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ct-btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 5px 10px; font-size: 13px; font-weight: 600; }
+.ct-btn:hover { border-color: var(--brand); }
+.ct-btn.ct-neg { color: var(--red); }
+.ct-btn.ct-neg:hover { border-color: var(--red); }
+.ct-btn.ct-primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.ct-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.ct-draft { margin-top: 10px; padding: 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); }
+.ct-k { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 700; margin: 2px 0 6px; }
+.ct-fields { display: flex; flex-wrap: wrap; gap: 10px; }
+.ct-fields label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+.ct-fields input { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+.ct-grow { flex: 1 1 220px; }
+.ct-impact { margin-top: 10px; }
+.ct-impact ul { margin: 0 0 8px; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
+
+.ct-side { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; align-self: start; position: sticky; top: 12px; }
+.ct-log { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 12px; max-height: 60vh; overflow: auto; }
