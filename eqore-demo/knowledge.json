@@ -1,0 +1,832 @@
+{
+  "version": "0.4.0",
+  "as_of": "2026-11-07",
+  "purpose": "Public-source reference library and explicit synthetic operating policies for local demonstration.",
+  "sources": [
+    {
+      "id": "SRC_EQORE_PM",
+      "title": "Project Manager, Deployments",
+      "url": "https://www.eqore.com/careers/project-manager-deployments",
+      "publisher": "EQORE",
+      "checked_on": "2026-11-07",
+      "type": "company_disclosure_job_description",
+      "fact_summary": "EQORE describes ownership of concurrent commercial battery deployments, schedules and change orders; permitting and fire/utility review; contractor/vendor coordination; field checks against approved drawings including metering; functional commissioning with controls/fleet engineers; customer continuity; and reusable checklists.",
+      "useful_to_project": "Defines the target operator, operational responsibilities, stakeholders, handoffs, and possible deployment-coordination tasks. Supports interviews about exception handling and decision authority.",
+      "scope_limitations": "A recruiting description, not an observed process map, complete SOP, project dataset, or evidence of current tool coverage. Relative hiring dates on the page should not be treated as current project commitments.",
+      "locator": "About the role; What you will do; What you will bring.",
+      "evidence_status": "Primary page opened and checked with web source retrieval on 2026-11-07.",
+      "scope": "A recruiting description, not an observed process map, complete SOP, project dataset, or evidence of current tool coverage. Relative hiring dates on the page should not be treated as current project commitments.",
+      "summary": "EQORE describes ownership of concurrent commercial battery deployments, schedules and change orders; permitting and fire/utility review; contractor/vendor coordination; field checks against approved drawings including metering; functional commissioning with controls/fleet engineers; customer continuity; and reusable checklists.",
+      "applicability": {
+        "project": "Three synthetic demonstration projects; source-to-workflow mapping recorded in each project. Local Beverly conditions scoped only to Harbor.",
+        "jurisdiction": "Reference only; not an EQORE internal procedure"
+      }
+    },
+    {
+      "id": "SRC_EQORE_TOOLS",
+      "title": "Full-Stack Engineer, Internal Tools",
+      "url": "https://www.eqore.com/careers/full-stack-internal-tools-engineer",
+      "publisher": "EQORE",
+      "checked_on": "2026-11-07",
+      "type": "company_disclosure_job_description",
+      "fact_summary": "EQORE describes internal automation spanning QoreApp, customer reporting, savings verification, utility-bill review, and delivery tools for plan review, one-line diagrams, site evaluation, and commissioning. The role emphasizes understanding manual work, useful AI, human checks, and preventing staffing requirements from growing directly with the fleet.",
+      "useful_to_project": "Connects the proposed prototype to a stated business need and helps identify adjacent internal tools, integration points, and operator-efficiency metrics.",
+      "scope_limitations": "The role description does not establish which tools already exist, their maturity, available APIs, or the company's preferred architecture. Confirm these directly with the sponsor.",
+      "locator": "Sections: About the role; What you'll do; What you'll bring.",
+      "evidence_status": "Imported from user-provided handoff reviewed 2026-11-07; not a new automated web check in this build.",
+      "scope": "The role description does not establish which tools already exist, their maturity, available APIs, or the company's preferred architecture. Confirm these directly with the sponsor.",
+      "summary": "EQORE describes internal automation spanning QoreApp, customer reporting, savings verification, utility-bill review, and delivery tools for plan review, one-line diagrams, site evaluation, and commissioning. The role emphasizes understanding manual work, useful AI, human checks, and preventing staffing requirements from growing directly with the fleet.",
+      "applicability": {
+        "project": "DEMO-MA-01 synthetic Beverly demonstration",
+        "jurisdiction": "Reference only; not an EQORE internal procedure"
+      }
+    },
+    {
+      "id": "SRC_EQORE_PROCESS",
+      "title": "How commercial battery storage works with EQORE",
+      "url": "https://www.eqore.com/how-it-works",
+      "publisher": "EQORE",
+      "checked_on": "2026-11-07",
+      "type": "company_disclosure_process_overview",
+      "fact_summary": "EQORE describes assessment and proposal, design and permitting, utility interconnection, installation and commissioning, and operation. It gives general guidance of typically 3–6 months, with fieldwork taking days and much elapsed time in permitting and utility review. The page does not explicitly anchor that duration to contract signing. It describes inspections and utility approval before operational commissioning and live monitoring.",
+      "useful_to_project": "Provides a baseline lifecycle and distinguishes operator-controlled actions from external review waits. Helps define stage gates and the transition from deployment to operation.",
+      "scope_limitations": "Company-reported timing is not an independently verified benchmark or a promised post-signing schedule. The numbered presentation does not establish that all activities are serial. Utility acceptance testing and project-specific dependencies require separate validation; the page is not an EQORE internal SOP.",
+      "locator": "Six steps to a live system; What EQORE handles; customer questions on timeline and disruption.",
+      "evidence_status": "Primary page opened and checked with web source retrieval on 2026-11-07.",
+      "scope": "Company-reported timing is not an independently verified benchmark or a promised post-signing schedule. The numbered presentation does not establish that all activities are serial. Utility acceptance testing and project-specific dependencies require separate validation; the page is not an EQORE internal SOP.",
+      "summary": "EQORE describes assessment and proposal, design and permitting, utility interconnection, installation and commissioning, and operation. It gives general guidance of typically 3–6 months, with fieldwork taking days and much elapsed time in permitting and utility review. The page does not explicitly anchor that duration to contract signing. It describes inspections and utility approval before operational commissioning and live monitoring.",
+      "applicability": {
+        "project": "Three synthetic demonstration projects; source-to-workflow mapping recorded in each project. Local Beverly conditions scoped only to Harbor.",
+        "jurisdiction": "Reference only; not an EQORE internal procedure"
+      }
+    },
+    {
+      "id": "SRC_EQORE_DATA",
+      "title": "How to get your electric data from your utility",
+      "url": "https://www.eqore.com/guides/interval-data",
+      "publisher": "EQORE",
+      "checked_on": "2026-11-07",
+      "type": "company_disclosure_customer_data_guide",
+      "fact_summary": "The guide requests 12 to 24 months of 15-minute interval data and the last 12 monthly bills for each meter. It describes customer downloads for PG&E and SCE, and signed authorization followed by a utility request for Eversource and National Grid. Multiple meters require distinguishable files and account information.",
+      "useful_to_project": "Supplies a concrete intake workflow: identify accounts, request authorization or exports, receive files, validate coverage, resolve missing information, and associate evidence with the correct meter.",
+      "scope_limitations": "These are EQORE's published customer instructions, not an authorization to access utility accounts. The page does not provide actual customer data. Utility procedures can change.",
+      "locator": "Sections: Find your utility; What we need; Interval data questions.",
+      "evidence_status": "Imported from user-provided handoff reviewed 2026-11-07; not a new automated web check in this build.",
+      "scope": "These are EQORE's published customer instructions, not an authorization to access utility accounts. The page does not provide actual customer data. Utility procedures can change.",
+      "summary": "The guide requests 12 to 24 months of 15-minute interval data and the last 12 monthly bills for each meter. It describes customer downloads for PG&E and SCE, and signed authorization followed by a utility request for Eversource and National Grid. Multiple meters require distinguishable files and account information.",
+      "applicability": {
+        "project": "DEMO-MA-01 synthetic Beverly demonstration",
+        "jurisdiction": "Reference only; not an EQORE internal procedure"
+      }
+    },
+    {
+      "id": "SRC_NG_MA_1646",
+      "title": "National Grid Massachusetts interconnection tariff — No. 1646",
+      "url": "https://www.nationalgrid.com/document/601641/download",
+      "publisher": "National Grid",
+      "checked_on": "2026-11-07",
+      "type": "utility_official_tariff",
+      "fact_summary": "The Massachusetts tariff separates application receipt, review, installation/completion documentation, applicable inspection or witness testing, and written Authorization to Interconnect. Witness testing can include commissioning testing before final authorization; ordinary parallel operation requires the written authorization. Failed screens can lead to supplemental or standard review. Moderate and significant project changes have different resubmission consequences. The selected pathway and project eligibility require confirmation.",
+      "useful_to_project": "Provides an official process reference for modeling utility review states, document requests, dependencies, and evidence needed before a project advances.",
+      "scope_limitations": "Applies within the tariff's jurisdiction and eligibility conditions. Do not generalize its process or timing to other utilities, project types, or locations. Confirm the correct review pathway for the specific project.",
+      "locator": "M.D.P.U. 1646, effective November 1, 2026; Witness Test definition, printed page 14; §§3.3(e–f, k–m), pages 26–27; §3.5, pages 41–42. Timings are pathway-specific business-day obligations, not universal project durations.",
+      "evidence_status": "Primary page opened and checked with web source retrieval on 2026-11-07.",
+      "scope": "National Grid Massachusetts only. Applies within the tariff's jurisdiction and eligibility conditions. Do not generalize its process or timing to other utilities, project types, or locations. Confirm the correct review pathway for the specific project.",
+      "summary": "The Massachusetts tariff separates application receipt, review, installation/completion documentation, applicable inspection or witness testing, and written Authorization to Interconnect. Witness testing can include commissioning testing before final authorization; ordinary parallel operation requires the written authorization. Failed screens can lead to supplemental or standard review. Moderate and significant project changes have different resubmission consequences. The selected pathway and project eligibility require confirmation.",
+      "applicability": {
+        "project": "Three synthetic demonstration projects; source-to-workflow mapping recorded in each project. Local Beverly conditions scoped only to Harbor.",
+        "jurisdiction": "National Grid Massachusetts; pathway must be verified"
+      }
+    },
+    {
+      "id": "SRC_BEVERLY",
+      "title": "Commercial BESS Permitting and Conditions",
+      "url": "https://www.beverlyma.gov/DocumentCenter/View/7578/Commercial-BESS-Permitting-and-Conditions",
+      "publisher": "City of Beverly, Massachusetts",
+      "checked_on": "2026-11-07",
+      "type": "local_government_official_checklist",
+      "fact_summary": "Beverly’s commercial BESS document identifies a separate fire-review submission, equipment/layout documentation and emergency-response materials, followed by pre-commissioning inspection and signoff. It is a local example; project applicability and the full conditions must be assessed by responsible professionals.",
+      "useful_to_project": "Offers a local example for translating authority requirements into evidence requests, review tasks, and project gates. Can ground a clearly labeled Beverly-based demonstration.",
+      "scope_limitations": "Beverly-specific conditions must not be applied as universal Massachusetts or national rules. The document does not establish that an EQORE project is located in Beverly or that every condition applies to the demo configuration.",
+      "locator": "v8/26: General Conditions; Required Documentation; Submission Process; final paragraph on pre-commissioning inspection.",
+      "evidence_status": "Primary page opened and checked with web source retrieval on 2026-11-07.",
+      "scope": "Beverly-specific conditions must not be applied as universal Massachusetts or national rules. The document does not establish that an EQORE project is located in Beverly or that every condition applies to the demo configuration.",
+      "summary": "Beverly’s commercial BESS document identifies a separate fire-review submission, equipment/layout documentation and emergency-response materials, followed by pre-commissioning inspection and signoff. It is a local example; project applicability and the full conditions must be assessed by responsible professionals.",
+      "applicability": {
+        "project": "Three synthetic demonstration projects; source-to-workflow mapping recorded in each project. Local Beverly conditions scoped only to Harbor.",
+        "jurisdiction": "Beverly MA"
+      }
+    },
+    {
+      "id": "SRC_ETB",
+      "title": "Modeling and deploying energy storage — deployment guidance",
+      "url": "https://www.energytoolbase.com/blog/energy-storage/modeling-deploying-energy-storage/",
+      "publisher": "Energy Toolbase",
+      "checked_on": "2026-11-07",
+      "type": "vendor_experience_article",
+      "fact_summary": "Energy Toolbase describes practical deployment dependencies: site assessment and metering, customer IT/firewalls, coordinated vendor/installer responsibilities, commissioning records and testing, correct operating inputs, and customer monitoring education. These are vendor experience categories, not EQORE procedures or universal durations.",
+      "useful_to_project": "Provides realistic categories of dependencies and exceptions for a synthetic installation-coordination demo, especially tasks that involve both facilities personnel and controls engineers.",
+      "scope_limitations": "Vendor experience from 2023 is not an EQORE SOP, current regulatory standard, or universal checklist. Validate requirements against the selected hardware, network architecture, and project team.",
+      "locator": "Pre-Commissioning Process; Commissioning Process; Division of Responsibilities; End-User Education. Article dated August7,2023.",
+      "evidence_status": "Primary page opened and checked with web source retrieval on 2026-11-07.",
+      "scope": "Vendor experience from 2023 is not an EQORE SOP, current regulatory standard, or universal checklist. Validate requirements against the selected hardware, network architecture, and project team.",
+      "summary": "Energy Toolbase describes practical deployment dependencies: site assessment and metering, customer IT/firewalls, coordinated vendor/installer responsibilities, commissioning records and testing, correct operating inputs, and customer monitoring education. These are vendor experience categories, not EQORE procedures or universal durations.",
+      "applicability": {
+        "project": "Three synthetic demonstration projects; source-to-workflow mapping recorded in each project. Local Beverly conditions scoped only to Harbor.",
+        "jurisdiction": "Reference only; not an EQORE internal procedure"
+      }
+    },
+    {
+      "id": "SRC_SOCOMEC",
+      "title": "SUNSYS HES L product page",
+      "url": "https://www.socomec.us/en-us/p/sunsys-hes-l",
+      "publisher": "Socomec",
+      "checked_on": "2026-11-07",
+      "type": "vendor_product_documentation_index",
+      "fact_summary": "Socomec publishes a SUNSYS HES L energy-storage product page with product-document download links. It is an example of a manufacturer source from which equipment documentation can be collected.",
+      "useful_to_project": "Supports the concept of equipment-specific evidence packages and a document intake pipeline. It can serve as a comparator for how product details and supporting files are presented.",
+      "scope_limitations": "No relationship between Socomec and EQORE is asserted. Installation-manual contents were not verified in this research. Do not derive engineering requirements or equipment compatibility from this page alone.",
+      "locator": "Product page and document-download area; linked installation-document content was not verified.",
+      "evidence_status": "Imported from user-provided handoff reviewed 2026-11-07; not a new automated web check in this build.",
+      "scope": "No relationship between Socomec and EQORE is asserted. Installation-manual contents were not verified in this research. Do not derive engineering requirements or equipment compatibility from this page alone.",
+      "summary": "Socomec publishes a SUNSYS HES L energy-storage product page with product-document download links. It is an example of a manufacturer source from which equipment documentation can be collected.",
+      "applicability": {
+        "project": "DEMO-MA-01 synthetic Beverly demonstration",
+        "jurisdiction": "Reference only; not an EQORE internal procedure"
+      }
+    },
+    {
+      "id": "SRC_EQORE_FLEET",
+      "title": "QoreControl & Fleet Reliability Engineer",
+      "url": "https://www.eqore.com/careers/qorecontrol-fleet-reliability-engineer",
+      "publisher": "EQORE",
+      "checked_on": "2026-11-07",
+      "type": "company_disclosure_job_description",
+      "summary": "EQORE describes QoreControl as the site integration layer connecting batteries, inverters and meters with QoreAI. Fleet responsibilities include observability, alerting, incident runbooks, hardware integration, remote operation and recovery, and bringing sites online with deployment teams.",
+      "useful_to_project": "Supports explicit fleet acceptance, telemetry/alert evidence and named operational ownership at handoff.",
+      "scope": "Public role description only; no EQORE implementation, current reliability performance, internal runbook or acceptance criteria are available.",
+      "locator": "About the role; What you will do.",
+      "evidence_status": "Primary page opened and checked with web source retrieval on 2026-11-07.",
+      "applicability": {
+        "project": "All three synthetic demonstration projects",
+        "jurisdiction": "Company role scope, not regulatory requirements"
+      },
+      "fact_summary": "EQORE describes QoreControl as the site integration layer connecting batteries, inverters and meters with QoreAI. Fleet responsibilities include observability, alerting, incident runbooks, hardware integration, remote operation and recovery, and bringing sites online with deployment teams.",
+      "scope_limitations": "Public role description only; no EQORE implementation, current reliability performance, internal runbook or acceptance criteria are available."
+    },
+    {
+      "id": "SRC_EQORE_COST",
+      "title": "What does commercial battery storage cost?",
+      "url": "https://www.eqore.com/learn/commercial-battery-storage-cost",
+      "publisher": "EQORE",
+      "checked_on": "2026-11-07",
+      "type": "company_disclosure_cost_overview",
+      "summary": "EQORE describes equipment as the largest upfront component, with controls, electrical/structural materials, engineering, permitting, project management, installation and commissioning also contributing. It emphasizes project size and site conditions; purchase and shared-savings structures assign costs differently.",
+      "useful_to_project": "Cost-category reference and reason to identify the assumed commercial structure. Scenario dollars and category shares are invented site-specific allocations, not EQORE estimates.",
+      "scope": "Company overview, not a quote for any demo site, independent cost benchmark or guaranteed financial outcome.",
+      "locator": "Where the upfront money goes; How you pay for it; cost questions.",
+      "evidence_status": "Primary page opened and checked with web source retrieval on 2026-11-07.",
+      "applicability": {
+        "project": "All three synthetic projects",
+        "jurisdiction": "Qualitative category reference only"
+      },
+      "fact_summary": "EQORE describes equipment as the largest upfront component, with controls, electrical/structural materials, engineering, permitting, project management, installation and commissioning also contributing. It emphasizes project size and site conditions; purchase and shared-savings structures assign costs differently.",
+      "scope_limitations": "Company overview, not a quote for any demo site, independent cost benchmark or guaranteed financial outcome."
+    },
+    {
+      "id": "SRC_NFPA_855",
+      "title": "NFPA 855 — Standard for the Installation of Stationary Energy Storage Systems",
+      "url": "https://www.nfpa.org/codes-and-standards/nfpa-855-standard-development/855",
+      "publisher": "National Fire Protection Association",
+      "checked_on": "2026-11-07",
+      "type": "standards_body_official_overview",
+      "summary": "NFPA identifies NFPA 855 as the installation standard for stationary energy storage systems, addressing mitigation of associated hazards. Its official listing identifies the 2026 edition as current.",
+      "fact_summary": "NFPA identifies NFPA 855 as the installation standard for stationary energy storage systems, addressing mitigation of associated hazards. Its official listing identifies the 2026 edition as current.",
+      "scope": "This overview does not establish the edition adopted for a particular jurisdiction or verify a project design. Current publication and local adoption are separate facts. The complete standard was not reviewed in this workflow check.",
+      "scope_limitations": "This overview does not establish the edition adopted for a particular jurisdiction or verify a project design. Current publication and local adoption are separate facts. The complete standard was not reviewed in this workflow check.",
+      "useful_to_project": "Separates installation requirements from equipment certification and fire-test evidence in the project knowledge model.",
+      "locator": "Official standard title, description and current-edition listing.",
+      "evidence_status": "Primary page opened and checked with web source retrieval on 2026-11-07.",
+      "applicability": {
+        "project": "All three synthetic demonstration projects; conceptual evidence categories only",
+        "jurisdiction": "Applicable code edition and local adoption must be established by the project team"
+      }
+    },
+    {
+      "id": "SRC_UL_9540",
+      "title": "Energy Storage System Testing and Certification — UL 9540",
+      "url": "https://www.ul.com/services/energy-storage-system-testing-and-certification",
+      "publisher": "UL Solutions",
+      "checked_on": "2026-11-07",
+      "type": "standards_testing_body_official_overview",
+      "summary": "UL 9540 provides comprehensive safety criteria for complete energy storage systems and a basis for system certification, including charging/discharging, protection, control, device communication and other system aspects.",
+      "fact_summary": "UL 9540 provides comprehensive safety criteria for complete energy storage systems and a basis for system certification, including charging/discharging, protection, control, device communication and other system aspects.",
+      "scope": "A reference to UL 9540 is not evidence that the selected equipment or assembled configuration is listed. Project-specific equipment records, configuration and installation requirements still need review.",
+      "scope_limitations": "A reference to UL 9540 is not evidence that the selected equipment or assembled configuration is listed. Project-specific equipment records, configuration and installation requirements still need review.",
+      "useful_to_project": "Models complete-system certification as equipment evidence, separate from fire-test reports and local authority approval.",
+      "locator": "Understanding UL 9540 and ESS certification.",
+      "evidence_status": "Primary page opened and checked with web source retrieval on 2026-11-07.",
+      "applicability": {
+        "project": "All three synthetic demonstration projects; conceptual evidence categories only",
+        "jurisdiction": "Equipment-specific evidence; does not itself grant site approval"
+      }
+    },
+    {
+      "id": "SRC_UL_9540A",
+      "title": "UL 9540A Test Method for Battery Energy Storage Systems",
+      "url": "https://www.ul.com/services/ul-9540a-test-method",
+      "publisher": "UL Solutions",
+      "checked_on": "2026-11-07",
+      "type": "standards_testing_body_official_overview",
+      "summary": "UL 9540A is the standard test method for evaluating thermal-runaway fire propagation in battery energy storage systems. Its test results inform assessment of fire and explosion behavior and installation conditions. UL distinguishes this testing from certification of a complete system to UL 9540.",
+      "fact_summary": "UL 9540A is the standard test method for evaluating thermal-runaway fire propagation in battery energy storage systems. Its test results inform assessment of fire and explosion behavior and installation conditions. UL distinguishes this testing from certification of a complete system to UL 9540.",
+      "scope": "A UL 9540A report is not a substitute for complete-system certification or site approval. Test edition, equipment configuration and relevance to the proposed installation must be checked; no universal pass/fail approval or required site layout is inferred here.",
+      "scope_limitations": "A UL 9540A report is not a substitute for complete-system certification or site approval. Test edition, equipment configuration and relevance to the proposed installation must be checked; no universal pass/fail approval or required site layout is inferred here.",
+      "useful_to_project": "Tracks the appropriate fire-test report separately from a system listing and AHJ acceptance.",
+      "locator": "UL 9540A overview and fifth/sixth-edition test-method descriptions.",
+      "evidence_status": "Primary page opened and checked with web source retrieval on 2026-11-07.",
+      "applicability": {
+        "project": "All three synthetic demonstration projects; conceptual evidence categories only",
+        "jurisdiction": "Equipment/configuration and applicable code-specific evidence"
+      }
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "CAP01",
+      "name": "Project and portfolio coordination",
+      "description": "Shared crew commitments and recorded project priorities",
+      "demonstrated_by": "shared_resource",
+      "maturity": "prototype workflow representation; evaluated by development scenarios, not production validation"
+    },
+    {
+      "id": "CAP02",
+      "name": "Schedule, procurement and cost",
+      "description": "Evidence-backed delivery recovery and scoped approval",
+      "demonstrated_by": "delivery_delay",
+      "maturity": "prototype workflow representation; evaluated by development scenarios, not production validation"
+    },
+    {
+      "id": "CAP03",
+      "name": "Permits and utility review",
+      "description": "Receipt/review/authorization distinctions",
+      "demonstrated_by": "utility_receipt",
+      "maturity": "prototype workflow representation; evaluated by development scenarios, not production validation"
+    },
+    {
+      "id": "CAP04",
+      "name": "Field coordination",
+      "description": "Site, rigging, electrician and customer resource dependencies",
+      "demonstrated_by": "delivery_delay",
+      "maturity": "prototype workflow representation; evaluated by development scenarios, not production validation"
+    },
+    {
+      "id": "CAP05",
+      "name": "Installation verification",
+      "description": "Current-design evidence and qualified discrepancy resolution",
+      "demonstrated_by": "field_discrepancy",
+      "maturity": "prototype workflow representation; evaluated by development scenarios, not production validation"
+    },
+    {
+      "id": "CAP06",
+      "name": "Commissioning and handoff",
+      "description": "Network readiness, functional tests and operational records",
+      "demonstrated_by": "network_readiness",
+      "maturity": "prototype workflow representation; evaluated by development scenarios, not production validation"
+    },
+    {
+      "id": "CAP07",
+      "name": "Customer continuity",
+      "description": "Production constraints, authorized shutdowns and bounded nonresponse",
+      "demonstrated_by": "customer_nonresponse",
+      "maturity": "prototype workflow representation; evaluated by development scenarios, not production validation"
+    },
+    {
+      "id": "CAP08",
+      "name": "Reusable process learning",
+      "description": "Scope and process-owner review before template adoption",
+      "demonstrated_by": "checklist_learning",
+      "maturity": "prototype workflow representation; evaluated by development scenarios, not production validation"
+    }
+  ],
+  "policies": [
+    {
+      "id": "POLICY_DEMO_01",
+      "synthetic": true,
+      "text": "PM may approve schedule changes up to $2,500 incremental cost; designated commercial approver handles larger changes. These are invented delegation limits."
+    },
+    {
+      "id": "POLICY_DEMO_02",
+      "synthetic": true,
+      "text": "Customer facilities supplies availability; operations authorizes the interruption. External bookings, internal approvals and institutional authorizations are separate."
+    },
+    {
+      "id": "POLICY_DEMO_03",
+      "synthetic": true,
+      "text": "Every physical completion requires authorized, project- and revision-scoped evidence. A document statement is not trusted actor authority."
+    },
+    {
+      "id": "POLICY_DEMO_04",
+      "synthetic": true,
+      "text": "References require applicability by project, jurisdiction, utility, equipment and version. The fixture encodes a simplified review pathway, not a legal/engineering determination."
+    },
+    {
+      "id": "POLICY_DEMO_05",
+      "synthetic": true,
+      "text": "Follow-up after 24 simulated hours; escalation after 48. Contacts use reserved .example addresses and no real message is sent."
+    },
+    {
+      "id": "POLICY_DEMO_06",
+      "synthetic": true,
+      "text": "Plan commitment may use a current delivery estimate; physical receiving evidence is a separate execution prerequisite. Generic institutional receipts never substitute for authorization. Final handoff includes document, customer-training and fleet-readiness evidence."
+    }
+  ],
+  "limitations": [
+    "All scenarios are synthetic development cases; no real EQORE project records, internal delegation policies, hardware settings or contacts are used.",
+    "Future events and expected outcomes live in simulator/evaluator modules and are not supplied as product state. These are visible development cases, not sealed holdouts.",
+    "Case counts measure test coverage, not operational savings, regulatory compliance, or achieved autonomy across all PM duties.",
+    "A simplified schedule and field verification model cannot validate an actual construction design or physical installation.",
+    "Manufacturer example is not asserted as an EQORE supplier and installation-manual contents were not verified."
+  ],
+  "research_notes": {
+    "checked_on": "2026-11-07",
+    "method": "Read current primary EQORE role/process pages, official utility tariff and city checklist; compare practical vendor deployment account. No private customer records or technical settings were used.",
+    "design_decisions": [
+      {
+        "decision": "14-task project lifecycle separates closeout documents and customer walkthrough from fleet handoff.",
+        "source_ids": [
+          "SRC_EQORE_PM",
+          "SRC_EQORE_PROCESS",
+          "SRC_EQORE_FLEET",
+          "SRC_ETB"
+        ],
+        "status": "Prototype design informed by sources, not quoted EQORE process."
+      },
+      {
+        "decision": "Five explicit additional boundaries: fire review, physical receiving, installer corrective work, final inspection and fleet readiness.",
+        "source_ids": [
+          "SRC_EQORE_PM",
+          "SRC_BEVERLY",
+          "SRC_EQORE_FLEET"
+        ],
+        "status": "Synthetic case-specific acceptance boundaries. Receiving separation is our inference from real logistics semantics, not a claimed published EQORE rule."
+      },
+      {
+        "decision": "Millbrook uses a November–February timeline, with separate planned review/procurement periods. Harbor/River open after August contract work.",
+        "source_ids": [
+          "SRC_EQORE_PROCESS"
+        ],
+        "status": "Invented schedules informed qualitatively by multi-month deployment description; not promises or measured averages."
+      },
+      {
+        "decision": "Review acknowledgements remain pending; later project-scoped reviewer outputs establish acceptance.",
+        "source_ids": [
+          "SRC_NG_MA_1646",
+          "SRC_BEVERLY"
+        ],
+        "status": "Authority distinction grounded in sources; reply timing and positive completion outcomes are simulator assumptions."
+      },
+      {
+        "decision": "Synthetic purchase-model cost ledger includes labor assumptions separately from equipment/materials and assumes site-intensive allocation; category proportions intentionally are not represented as EQORE typical shares.",
+        "source_ids": [
+          "SRC_EQORE_COST"
+        ],
+        "status": "Category-level grounding; amounts, rates and cost deltas are authored demo assumptions."
+      }
+    ],
+    "not_established": [
+      "Actual utility service territory or interconnection pathway for any fictional address",
+      "An equipment supplier relationship with EQORE",
+      "Engineering suitability, safety design, permit compliance, live savings, or real costs",
+      "Actual EQORE SOPs, internal delegation limits, checklists, calendars or task durations"
+    ]
+  },
+  "workflow_review": {
+    "source_filename": "Battery Deployment flow.html",
+    "reviewed_on": "2026-11-07",
+    "status": "partially_verified",
+    "scope": "post_signing",
+    "finding": "The full HTML map is now available and has been reviewed: 21 nodes, six phase bands and four drawn rework loops. Its broad lifecycle and stakeholder structure fit the public references, but its durations are illustrative and several dependencies, commissioning labels and fixed rework routes need correction. The application incorporates its post-signing structure through eight product phase groups with explicit authority and evidence gates; it does not adopt the HTML as an executable engineering schedule.",
+    "supported_claims": [
+      {
+        "text": "EQORE publicly describes a lifecycle through design, permitting, utility review, installation, commissioning and operation.",
+        "source_ids": [
+          "SRC_EQORE_PROCESS"
+        ],
+        "evidence_type": "verified_fact"
+      },
+      {
+        "text": "EQORE’s deployment PM role runs from signed contract through commissioning and handoff, including schedule, budget, procurement, authorities, field verification and customer coordination.",
+        "source_ids": [
+          "SRC_EQORE_PM"
+        ],
+        "evidence_type": "verified_fact"
+      },
+      {
+        "text": "NFPA 855 installation requirements, UL 9540 system certification and UL 9540A fire-test evidence serve different purposes.",
+        "source_ids": [
+          "SRC_NFPA_855",
+          "SRC_UL_9540",
+          "SRC_UL_9540A"
+        ],
+        "evidence_type": "verified_fact"
+      }
+    ],
+    "corrections": [
+      {
+        "text": "Restrict this application workflow to signed contract through handoff. Treat assessment, sales proposal and commercial negotiation as upstream context.",
+        "source_ids": [
+          "SRC_EQORE_PM"
+        ],
+        "evidence_type": "product_inference"
+      },
+      {
+        "text": "A numbered phase display must not imply that all work is serial. Independent review, procurement and readiness work can overlap where its own prerequisites permit.",
+        "source_ids": [
+          "SRC_EQORE_PM",
+          "SRC_EQORE_PROCESS"
+        ],
+        "evidence_type": "product_inference"
+      },
+      {
+        "text": "Separate utility acknowledgment, pre-install review and written operating authorization. Applicable witness commissioning tests can occur before final authorization; later operational commissioning is a separate acceptance step.",
+        "source_ids": [
+          "SRC_NG_MA_1646",
+          "SRC_EQORE_PROCESS"
+        ],
+        "evidence_type": "verified_fact"
+      },
+      {
+        "text": "Do not call a UL 9540A test report a system listing or a site permit. Track each evidence type separately.",
+        "source_ids": [
+          "SRC_UL_9540",
+          "SRC_UL_9540A"
+        ],
+        "evidence_type": "verified_fact"
+      },
+      {
+        "text": "Permit conditions and applicable code editions require jurisdiction-specific confirmation. Beverly’s checklist is a local example, not a universal requirement.",
+        "source_ids": [
+          "SRC_BEVERLY",
+          "SRC_NFPA_855"
+        ],
+        "evidence_type": "verified_fact"
+      },
+      {
+        "text": "Rejection does not always restart the entire project. Utility screen failures and project changes have distinct routes; other rework routes in the demo are scoped product assumptions.",
+        "source_ids": [
+          "SRC_NG_MA_1646"
+        ],
+        "evidence_type": "verified_fact"
+      },
+      {
+        "text": "Separate the utility application/review agreement milestone from final operating authorization. HTML node3B describes both, while a later PTO node also models final approval.",
+        "source_ids": [
+          "SRC_NG_MA_1646"
+        ],
+        "evidence_type": "product_inference"
+      },
+      {
+        "text": "Treat procurement/shipping records and physical receiving as different evidence. The HTML procurement output says delivered, while its placement node repeats delivery; neither estimate nor shipment alone proves arrival.",
+        "source_ids": [
+          "SRC_EQORE_PM"
+        ],
+        "evidence_type": "product_inference"
+      },
+      {
+        "text": "Preconstruction and physical work must retain their applicable utility-installation, permit, resource, customer and readiness prerequisites. The HTML’s single permit predecessor does not represent all the conditions listed in its own step details.",
+        "source_ids": [
+          "SRC_EQORE_PM",
+          "SRC_NG_MA_1646"
+        ],
+        "evidence_type": "product_inference"
+      },
+      {
+        "text": "Replace blanket utility-comment-to-equipment-replacement and inspection-failure-to-electrical-installation loops with the reviewer’s scoped finding, correction owner and required resubmission or retest.",
+        "source_ids": [
+          "SRC_NG_MA_1646",
+          "SRC_EQORE_PM"
+        ],
+        "evidence_type": "product_inference"
+      },
+      {
+        "text": "The HTML’s pre-PTO commissioning node must mean the applicable authorized acceptance/witness testing, not unrestricted battery operation. The application separately models operational commissioning after its required operating-authority gate.",
+        "source_ids": [
+          "SRC_NG_MA_1646",
+          "SRC_EQORE_PROCESS"
+        ],
+        "evidence_type": "product_inference"
+      },
+      {
+        "text": "Do not assume that equipment substitution automatically restarts every design task, or that a zoning classification, drawing/study list, fire condition, cure duration or supplier lead time applies to every site. Record an explicit impact scope and responsible review.",
+        "source_ids": [
+          "SRC_NG_MA_1646",
+          "SRC_BEVERLY",
+          "SRC_EQORE_PM"
+        ],
+        "evidence_type": "product_inference"
+      }
+    ],
+    "missing_content": [],
+    "timing_notes": [
+      "EQORE’s 3–6 month statement is general company deployment guidance. The public process page does not explicitly define its start as contract signing.",
+      "The HTML has a default of 28.5 weeks from first contact to live and 21.5 weeks from its signed-contract milestone to live, calculated from its authored dependency graph. These are scenario calculations, not verified lead-time observations or a forecast for the demonstration projects.",
+      "Every HTML task duration and min/max range remains illustrative. The application retains its own synthetic task dates and does not turn those ranges into engineering deadlines or promised review times.",
+      "Utility business-day obligations depend on pathway, completeness and applicable conditions; they are not universal end-to-end project durations.",
+      "A fixed seven-day pad-curing wait is not adopted as a release to load equipment. The project uses recorded readiness acceptance by the responsible qualified party.",
+      "The HTML critical-path highlights ignore the drawn rejection loops and other execution constraints. The application does not present them as a validated critical path."
+    ],
+    "inferred_rework_mapping": [
+      {
+        "trigger": "Permit or fire-review comments",
+        "return_to": "Responsible designer, then the relevant reviewer",
+        "scope": "Reopen the affected package and approval; preserve unaffected work.",
+        "source_ids": [
+          "SRC_EQORE_PM",
+          "SRC_BEVERLY"
+        ],
+        "evidence_type": "product_inference"
+      },
+      {
+        "trigger": "Missing utility information",
+        "return_to": "Engineer or PM for the requested material, then utility review",
+        "scope": "Keep the relevant utility milestone unresolved.",
+        "source_ids": [
+          "SRC_NG_MA_1646"
+        ],
+        "evidence_type": "product_inference"
+      },
+      {
+        "trigger": "Field discrepancy",
+        "return_to": "Qualified installer or engineer, then verification",
+        "scope": "Hold affected energization and testing prerequisites until corrective evidence is accepted.",
+        "source_ids": [
+          "SRC_EQORE_PM"
+        ],
+        "evidence_type": "product_inference"
+      },
+      {
+        "trigger": "Failed operational test",
+        "return_to": "Controls or installation owner, then repeat affected tests",
+        "scope": "Hold operational acceptance and handoff; review design approvals only if the correction changes their scope.",
+        "source_ids": [
+          "SRC_EQORE_PM",
+          "SRC_EQORE_FLEET"
+        ],
+        "evidence_type": "product_inference"
+      },
+      {
+        "trigger": "Missing closeout or handoff evidence",
+        "return_to": "Document owner, customer or fleet team",
+        "scope": "Hold handoff rather than resetting completed construction.",
+        "source_ids": [
+          "SRC_EQORE_PROCESS",
+          "SRC_EQORE_FLEET"
+        ],
+        "evidence_type": "product_inference"
+      },
+      {
+        "trigger": "Delivery or customer-window change",
+        "return_to": "Vendor or customer operations, then coordinated replanning",
+        "scope": "Reconfirm affected dates, resources and approvals.",
+        "source_ids": [
+          "SRC_EQORE_PM"
+        ],
+        "evidence_type": "product_inference"
+      }
+    ],
+    "source_ids": [
+      "SRC_EQORE_PM",
+      "SRC_EQORE_PROCESS",
+      "SRC_NG_MA_1646",
+      "SRC_BEVERLY",
+      "SRC_EQORE_FLEET",
+      "SRC_NFPA_855",
+      "SRC_UL_9540",
+      "SRC_UL_9540A"
+    ],
+    "source_filenames": [
+      "Battery Deployment Map.md",
+      "Battery Deployment flow.html"
+    ],
+    "original_markdown_note": "The original Markdown export contained only the introduction and legend. The subsequently supplied HTML provides the actual nodes, durations, dependencies and loops; those contents are no longer missing.",
+    "validation_limits": [
+      "Per-step typical durations and common ranges are not supported by measurements or citations in the supplied HTML.",
+      "The HTML schedule calculation uses task durations and dependency edges; it does not enforce resource calendars, customer authorization, evidence validity or the drawn rework loops.",
+      "Some engineering and permit checklist items are configuration- or jurisdiction-dependent and are not adopted as universal requirements.",
+      "No actual EQORE internal SOP, approved construction design, supplier commitment or customer project schedule was provided."
+    ],
+    "map_structure": {
+      "node_count": 21,
+      "source_phase_bands": 6,
+      "application_phase_groups": 8,
+      "drawn_rework_loops": 4,
+      "post_signing_execution_nodes": 15,
+      "operations_reference_nodes": 2,
+      "note": "Eight product groups refine the source’s broader bands. Phase groups organize existing work; they do not add a serial dependency between every neighboring phase.",
+      "rework_calculation_note": "The HTML compute() routine calculates earliest/latest dates from S.deps and durations. LOOPS is displayed separately and does not add rework to those calculations."
+    },
+    "map_coverage": [
+      {
+        "source_node_id": "s5",
+        "title": "Select equipment",
+        "application_refs": [
+          "t_design",
+          "t_procure"
+        ],
+        "coverage": "aggregated",
+        "note": "The issued configuration and procurement record represent equipment selection. There is no separate BOM-selection task or automatic release of a purchase order."
+      },
+      {
+        "source_node_id": "s6",
+        "title": "Stamped engineering",
+        "application_refs": [
+          "t_design",
+          "design"
+        ],
+        "coverage": "represented",
+        "note": "The task and design gate hold current accepted design evidence. They do not independently verify an engineering stamp or mandate every study listed in the HTML."
+      },
+      {
+        "source_node_id": "a",
+        "title": "Permitting",
+        "application_refs": [
+          "t_permit",
+          "permit",
+          "fire_review"
+        ],
+        "coverage": "represented",
+        "note": "Applicable permit and fire acceptance remain separate. Jurisdiction-specific conditions are recorded as scoped requirements."
+      },
+      {
+        "source_node_id": "b",
+        "title": "Utility interconnection",
+        "application_refs": [
+          "t_utility",
+          "utility_install",
+          "utility_operate"
+        ],
+        "coverage": "split",
+        "note": "Pre-install review and final written operating authorization are distinct. The demo does not determine eligibility or simulate every utility study pathway."
+      },
+      {
+        "source_node_id": "c",
+        "title": "Procurement & shipping",
+        "application_refs": [
+          "t_procure",
+          "delivery_receipt"
+        ],
+        "coverage": "split",
+        "note": "The ordered configuration and shipping record do not prove physical receipt. Manufacturing, deposits and detailed purchase-order execution remain outside the simulation."
+      },
+      {
+        "source_node_id": "s7",
+        "title": "Pre-construction scheduling",
+        "application_refs": [
+          "proposals",
+          "decisions",
+          "bookings",
+          "customer_window"
+        ],
+        "coverage": "represented",
+        "note": "Feasible schedule proposals, scoped approval, independent bookings and customer authority are modeled separately; no single checkbox grants them all."
+      },
+      {
+        "source_node_id": "s8",
+        "title": "Civil work",
+        "application_refs": [
+          "t_site"
+        ],
+        "coverage": "aggregated",
+        "note": "Site readiness covers pad, access and delivery-route evidence. Detailed excavation, concrete design/curing, fencing and civil subcontractor execution are not independently simulated."
+      },
+      {
+        "source_node_id": "s9",
+        "title": "Delivery & placement",
+        "application_refs": [
+          "t_unload",
+          "delivery_receipt"
+        ],
+        "coverage": "represented",
+        "note": "Physical receipt and placement require their own evidence and applicable readiness/bookings. Shipment or ETA alone is insufficient."
+      },
+      {
+        "source_node_id": "s10",
+        "title": "Electrical installation",
+        "application_refs": [
+          "t_electrical",
+          "corrective_work"
+        ],
+        "coverage": "aggregated",
+        "note": "Electrical work is one completion package with corrective-work evidence. Rough inspections and every installation subtask are not separate scheduled activities."
+      },
+      {
+        "source_node_id": "s11",
+        "title": "Tie-in to switchgear",
+        "application_refs": [
+          "t_electrical",
+          "customer_window",
+          "bookings"
+        ],
+        "coverage": "aggregated",
+        "note": "The electrical package includes the approved interruption window and resource confirmation. Tie-in is not an additional independent construction task."
+      },
+      {
+        "source_node_id": "s12",
+        "title": "Controls & communications",
+        "application_refs": [
+          "network",
+          "commissioned",
+          "t_commission"
+        ],
+        "coverage": "represented",
+        "note": "IT/network readiness and operational test acceptance are separate gates. Reachability alone does not prove remote operational readiness."
+      },
+      {
+        "source_node_id": "s13",
+        "title": "Final inspections",
+        "application_refs": [
+          "t_verify",
+          "field_verified",
+          "final_inspection"
+        ],
+        "coverage": "represented",
+        "note": "Qualified field verification and applicable final inspection records remain distinct. Findings return to their scoped correction owner; no universal electrical-work restart is assumed."
+      },
+      {
+        "source_node_id": "s14",
+        "title": "Commissioning",
+        "application_refs": [
+          "utility_operate",
+          "commissioned",
+          "t_commission"
+        ],
+        "coverage": "split",
+        "note": "Applicable utility witness/acceptance records belong before final operating authority. t_commission models later operational commissioning; detailed manufacturer test procedures are not simulated."
+      },
+      {
+        "source_node_id": "s15",
+        "title": "Utility Permission to Operate",
+        "application_refs": [
+          "utility_operate"
+        ],
+        "coverage": "represented",
+        "note": "Written scoped operating authorization is distinct from acknowledgment, conditional approval, inspection and any witness record."
+      },
+      {
+        "source_node_id": "s16",
+        "title": "Energize & hand over",
+        "application_refs": [
+          "t_commission",
+          "t_closeout_documents",
+          "t_customer_training",
+          "t_handoff",
+          "fleet_ready"
+        ],
+        "coverage": "split",
+        "note": "Operational tests, documents, customer walkthrough and fleet acceptance have separate evidence. No physical switching, actual calibration or earned savings is performed."
+      },
+      {
+        "source_node_id": "s17",
+        "title": "Program enrollment",
+        "application_refs": [
+          "t_handoff",
+          "t_closeout_documents"
+        ],
+        "coverage": "handoff_boundary",
+        "note": "Only applicable program-eligibility/status information belongs in the handoff record. Enrollment, seasonal eligibility decisions and program revenue are not simulated."
+      },
+      {
+        "source_node_id": "s18",
+        "title": "Operate & maintain",
+        "application_refs": [
+          "fleet_ready",
+          "t_handoff"
+        ],
+        "coverage": "handoff_boundary",
+        "note": "Named support ownership and fleet readiness are represented at handoff. Long-term dispatch, maintenance delivery, savings and warranty operations are outside current project-management scope."
+      }
+    ],
+    "excluded_source_nodes": [
+      {
+        "source_node_id": "s1",
+        "reason": "Pre-signing sales and commercial work; signed scope is an input to this application."
+      },
+      {
+        "source_node_id": "s2",
+        "reason": "Pre-signing sales and commercial work; signed scope is an input to this application."
+      },
+      {
+        "source_node_id": "s3",
+        "reason": "Pre-signing sales and commercial work; signed scope is an input to this application."
+      }
+    ],
+    "signed_entry_node": {
+      "source_node_id": "s4",
+      "application_refs": [
+        "t_contract"
+      ],
+      "note": "The already-signed agreement is the entry record. Pre-signing negotiation and the source’s not-signed-to-resizing loop are excluded."
+    }
+  }
+}

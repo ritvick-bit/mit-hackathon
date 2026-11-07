@@ -1,0 +1,26 @@
+__pycache__/
+*.pyc
+.DS_Store
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+*.sqlite3
+*.sqlite3-*
+
+# Runtime data stays local; retain only reviewed, synthetic reference artifacts.
+data/*
+!data/README.md
+!data/challenge-design-v03.json
+!data/challenge-results-before-v03.json
+!data/challenge-live-before-v03.json
+!data/baseline-evaluation-v04.json
+!data/project-evaluation-v04.json
+!data/challenge-results-after-v04.json
+!data/phase-live-decisions-v04.json
+!data/phases-v04.png
