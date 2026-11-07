@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EQORE Install Command Center</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <div class="logo">E</div>
+      <div>
+        <h1>Install Command Center</h1>
+        <p>Ready to schedule &rarr; commissioned &middot; <span class="demo-tag">Demo data, not an EQORE catalog</span></p>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-act="tab" data-tab="cc" class="on">Command center</button>
+      <button data-act="tab" data-tab="cal">Crew calendar</button>
+      <button data-act="tab" data-tab="alerts">Alerts <span class="badge" id="alert-count">0</span></button>
+      <button data-act="tab" data-tab="field">Field crew</button>
+    </nav>
+    <div class="demo-jump">
+      <span>Demo cases:</span>
+      <button data-act="open" data-id="JOB-001">1 &middot; Equipment late</button>
+      <button data-act="open" data-id="JOB-002">2 &middot; Crew double-booked</button>
+      <button data-act="open" data-id="JOB-003">3 &middot; Shutdown</button>
+      <button data-act="reset" class="ghost">Reset demo</button>
+    </div>
+  </header>
+
+  <section id="metrics" class="metrics"></section>
+
+  <main>
+    <section id="view-cc" class="view on">
+      <div class="cc-grid">
+        <div class="map-wrap">
+          <div class="map-bar">
+            <div class="chips" id="filters"></div>
+            <div class="chips" id="regions"></div>
+          </div>
+          <div id="map"></div>
+          <div class="legend"><i class="dot red"></i> Red: do not dispatch <i class="dot amber"></i> Amber: 1-2 items missing <i class="dot green"></i> Green: dispatch</div>
+        </div>
+        <div class="list-wrap">
+          <h2>Installs <small id="list-sub"></small></h2>
+          <div id="job-list"></div>
+        </div>
+      </div>
+    </section>
+    <section id="view-cal" class="view"></section>
+    <section id="view-alerts" class="view"></section>
+    <section id="view-field" class="view"></section>
+  </main>
+
+  <aside id="drawer" class="drawer" aria-hidden="true"></aside>
+  <div id="toast" class="toast"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+  <script src="data.js"></script>
+  <script src="engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
