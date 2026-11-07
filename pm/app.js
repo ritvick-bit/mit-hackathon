@@ -1,10 +1,11 @@
-// EQORE PM platform: the app (login, portfolio map, project dashboards, subcontractors).
+// EQORE PM platform: the app (login, portfolio map, project dashboards, procurement, subcontractors).
 // Look and components come from ../eqore-demo/web/styles.css; portal-only rules are in styles.css.
 (function () {
   const D = window.EQORE_PM_DATA, M = window.EQORE_PM;
   const $app = document.getElementById("app"), $modal = document.getElementById("modal-root"), $toast = document.getElementById("toast");
   const today = new Date().toLocaleDateString("en-CA");
-  const S = M.build(D, today);
+  let S = M.build(D, today);
+  let WS = { version: 0, data: {} }; // this PM's saved edits (products, documents, contractors)
   let me = null, map = null;
   const cache = { inbox: null, inboxError: null, gcal: {}, gcalError: null };
 
@@ -34,6 +35,8 @@
     search: icon('<circle cx="11" cy="11" r="6"/><path d="m20 20-4-4"/>'),
     warn: icon('<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/>'),
     left: icon('<path d="m15 18-6-6 6-6"/>'), right: icon('<path d="m9 18 6-6-6-6"/>'),
+    box: icon('<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>'),
+    plus: icon('<path d="M12 5v14M5 12h14"/>'), edit: icon('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m14 6 4 4"/>'),
   };
   function toast(text, error) {
     $toast.textContent = text; $toast.className = "toast show" + (error ? " error" : "");
@@ -218,11 +221,11 @@
   }
 
   // ---------- project pages ----------
-  const SECTIONS = [["overview", "Overview", I.grid], ["timeline", "Timeline", I.line], ["calendar", "Calendar", I.cal], ["inbox", "Inbox", I.mail], ["todo", "To do", I.check], ["documents", "Document center", I.doc], ["subcontractors", "Subcontractors", I.people]];
+  const SECTIONS = [["overview", "Overview", I.grid], ["timeline", "Timeline", I.line], ["calendar", "Calendar", I.cal], ["inbox", "Inbox", I.mail], ["todo", "To do", I.check], ["procurement", "Procurement", I.box], ["documents", "Document center", I.doc], ["subcontractors", "Subcontractors", I.people]];
   function renderProject(p, section, query) {
     if (!SECTIONS.some((s) => s[0] === section)) section = "overview";
     const name = SECTIONS.find((s) => s[0] === section)[1];
-    const counts = { todo: p.todos.filter((t) => t.kind !== "chase").length, subcontractors: M.subcontractors(S, p).filter((x) => x.delayed.length).length || "" };
+    const counts = { todo: p.todos.filter((t) => t.kind !== "chase").length, procurement: p.products.filter((x) => p.product_states[x.id].red).length || "", subcontractors: M.subcontractors(S, p).filter((x) => x.delayed.length).length || "" };
     $app.innerHTML = `
       <div class="app-shell">
         <aside class="sidebar">
@@ -240,7 +243,7 @@
     const page = document.getElementById("page");
     const head = `<div class="page-heading"><div><div class="eyebrow">${p.id} · ${esc(p.city)}, ${p.state} · ${esc(company(p.utility_id).name.replace(" interconnection", ""))}</div><h1>${section === "overview" ? esc(p.name) : name}</h1><p>${esc(p.status_text)}</p></div>
       <div class="project-heading-right"><div class="eyebrow">Forecast go-live</div><div class="date ${p.slip > 0 ? "text-red" : ""}">${fmt(p.go_live_date, { month: "short", day: "numeric", year: "numeric" })}</div><div class="timezone">${p.slip > 0 ? `${p.slip} work days after target (${fmt(p.target_date)})` : "On target"}</div></div></div>`;
-    const views = { overview, timeline: timelinePage, calendar: calendarPage, inbox: inboxPage, todo: todoPage, documents: documentsPage, subcontractors: subsPage };
+    const views = { overview, timeline: timelinePage, calendar: calendarPage, inbox: inboxPage, todo: todoPage, documents: documentsPage, subcontractors: subsPage, procurement: procurementPage };
     page.innerHTML = head + `<div id="view"></div>`;
     views[section](p, document.getElementById("view"), query || new URLSearchParams());
   }
@@ -253,6 +256,7 @@
         <div class="secondary-stack">
           <section class="panel">${panelHead("To do", "Documents and actions for you, by urgency", `#/project/${p.id}/todo`)}<div class="panel-body">${todoList(p, 6)}</div></section>
           <section class="panel">${panelHead("Subcontractors", "Their open items, delays and latest updates", `#/project/${p.id}/subcontractors`)}<div class="panel-body">${subsSummary(p)}</div></section>
+          <section class="panel">${panelHead("Procurement", "Products for this project, delays and next deliveries", `#/project/${p.id}/procurement`)}<div class="panel-body">${procSummary(p)}</div></section>
         </div>
         <div class="secondary-stack">
           <section class="panel clickable" data-action="open-calendar" data-project="${p.id}" tabindex="0" role="button" aria-label="Open the large calendar">${panelHead("Calendar", "Tasks and meetings. Click for the large view.")}<div class="panel-body" id="mini-cal"></div></section>
@@ -307,14 +311,14 @@
   const monthStart = (d) => d.slice(0, 8) + "01";
   const monthEnd = (d) => { const x = parse(monthStart(d)); x.setMonth(x.getMonth() + 1); x.setDate(0); return x.toLocaleDateString("en-CA"); };
   const shiftMonth = (d, n) => { const x = parse(monthStart(d)); x.setMonth(x.getMonth() + n); return x.toLocaleDateString("en-CA"); };
-  function monthGrid(month, events, big) {
+  function monthGrid(month, events, big, highlight) {
     const first = parse(month), start = new Date(first); start.setDate(1 - first.getDay());
     const cells = [];
     for (let i = 0; i < 42; i++) {
       const d = new Date(start); d.setDate(start.getDate() + i);
       const iso = d.toLocaleDateString("en-CA"), ev = events.filter((e) => e.date === iso);
       if (i >= 35 && d.getMonth() !== first.getMonth()) break;
-      cells.push(`<div class="cal-cell ${d.getMonth() !== first.getMonth() ? "other" : ""} ${iso === today ? "today" : ""} ${d.getDay() % 6 === 0 ? "weekend" : ""}">
+      cells.push(`<div class="cal-cell ${d.getMonth() !== first.getMonth() ? "other" : ""} ${iso === today ? "today" : ""} ${iso === highlight ? "highlight" : ""} ${d.getDay() % 6 === 0 ? "weekend" : ""}">
         <span class="cal-num">${d.getDate()}</span>
         ${big ? ev.slice(0, 4).map((e) => `<span class="cal-ev ${e.kind} ${e.state || ""}" title="${esc(e.title)}">${e.time ? e.time + " " : ""}${esc(e.title)}</span>`).join("") + (ev.length > 4 ? `<span class="cal-more">+${ev.length - 4} more</span>` : "")
           : `<span class="cal-dots">${ev.slice(0, 3).map((e) => `<i class="${e.kind}"></i>`).join("")}</span>`}
@@ -322,25 +326,25 @@
     }
     return `<div class="cal ${big ? "big" : "mini"}"><div class="cal-head">${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => `<span>${big ? d : d[0]}</span>`).join("")}</div><div class="cal-grid">${cells.join("")}</div></div>`;
   }
-  function agenda(events, limit) {
-    const up = events.filter((e) => e.date >= today).slice(0, limit || 99);
+  function agenda(events, limit, anyDate) {
+    const up = events.filter((e) => anyDate || e.date >= today).slice(0, limit || 99);
     if (!up.length) return `<div class="empty-state compact"><p>Nothing scheduled.</p></div>`;
-    return `<ul class="agenda">${up.map((e) => `<li><span class="agenda-date">${fmt(e.date, { weekday: "short", month: "short", day: "numeric" })}${e.time ? `<small>${e.time}</small>` : ""}</span><span class="agenda-title"><i class="kind ${e.kind}"></i>${e.link ? `<a href="${esc(e.link)}" target="_blank" rel="noopener">${esc(e.title)}</a>` : esc(e.title)}${e.owner ? `<small>${esc(company(e.owner).name)}</small>` : ""}${e.kind === "google" ? "<small>Google Calendar</small>" : ""}</span></li>`).join("")}</ul>`;
+    return `<ul class="agenda">${up.map((e) => `<li><span class="agenda-date">${fmt(e.date, { weekday: "short", month: "short", day: "numeric" })}${e.time ? `<small>${e.time}</small>` : ""}</span><span class="agenda-title ${e.state === "late" ? "text-red" : ""}"><i class="kind ${e.kind}"></i>${e.link ? `<a href="${esc(e.link)}" target="_blank" rel="noopener">${esc(e.title)}</a>` : esc(e.title)}${e.owner ? `<small>${esc(company(e.owner).name)}</small>` : ""}${e.kind === "google" ? "<small>Google Calendar</small>" : ""}</span></li>`).join("")}</ul>`;
   }
-  const calLegend = `<div class="legend"><span><i class="kind task"></i>Task start</span><span><i class="kind milestone"></i>Milestone</span><span><i class="kind doc"></i>Paperwork due</span><span><i class="kind meeting"></i>Meeting</span>${"<span><i class=\"kind google\"></i>Your Google Calendar</span>"}</div>`;
+  const calLegend = `<div class="legend"><span><i class="kind task"></i>Task start</span><span><i class="kind milestone"></i>Milestone</span><span><i class="kind doc"></i>Paperwork due</span><span><i class="kind delivery"></i>Delivery</span><span><i class="kind meeting"></i>Meeting</span>${"<span><i class=\"kind google\"></i>Your Google Calendar</span>"}</div>`;
   async function miniCalendar(p, el) {
     const from = monthStart(today), to = M.addDays(today, 30) > monthEnd(today) ? M.addDays(today, 30) : monthEnd(today);
     const events = await eventsFor(p, from, to);
     el.innerHTML = `<div class="cal-title">${fmt(today, { month: "long", year: "numeric" })}</div>${monthGrid(monthStart(today), events, false)}<div class="field-label section-spacer-sm">Coming up</div>${agenda(events, 4)}${cache.gcalError ? `<p class="tiny text-red">Google Calendar: ${esc(cache.gcalError)}</p>` : ""}`;
   }
-  async function bigCalendar(p, el, month) {
+  async function bigCalendar(p, el, month, highlight) {
     el.innerHTML = `<div class="spinner"></div>`;
     const events = await eventsFor(p, M.addDays(month, -7), M.addDays(monthEnd(month), 7));
     el.innerHTML = `<div class="cal-toolbar"><button class="button secondary small" data-cal="-1" aria-label="Previous month">${I.left}</button><h3>${fmt(month, { month: "long", year: "numeric" })}</h3><button class="button secondary small" data-cal="1" aria-label="Next month">${I.right}</button>
       <button class="button ghost small" data-cal="0">Today</button><a class="button ghost small" href="${calendarLink()}" target="_blank" rel="noopener">Open my calendar ${I.ext}</a></div>
-      <div class="cal-layout">${monthGrid(month, events, true)}<div><div class="field-label">Upcoming</div>${agenda(events.filter((e) => e.date >= month), 14)}</div></div>${calLegend}
+      <div class="cal-layout">${monthGrid(month, events, true, highlight)}<div><div class="field-label">${highlight ? fmt(highlight, { weekday: "long", month: "short", day: "numeric" }) : "Upcoming"}</div>${agenda(highlight ? events.filter((e) => e.date === highlight) : events.filter((e) => e.date >= month), 14, !!highlight)}${highlight ? `<div class="field-label section-spacer-sm">After that</div>${agenda(events.filter((e) => e.date > highlight), 8)}` : ""}</div></div>${calLegend}
       ${me.mode !== "google" ? `<p class="tiny muted">Demo calendar. Sign in with Google to see your own meetings here too.</p>` : cache.gcalError ? `<p class="tiny text-red">Google Calendar: ${esc(cache.gcalError)}</p>` : ""}`;
-    el.querySelectorAll("[data-cal]").forEach((b) => b.addEventListener("click", () => bigCalendar(p, el, b.dataset.cal === "0" ? monthStart(today) : shiftMonth(month, +b.dataset.cal))));
+    el.querySelectorAll("[data-cal]").forEach((b) => b.addEventListener("click", () => bigCalendar(p, el, b.dataset.cal === "0" ? monthStart(today) : shiftMonth(month, +b.dataset.cal), highlight)));
   }
   function calendarPage(p, el) {
     el.innerHTML = `<section class="panel"><div class="panel-body panel-body-top" id="big-cal"></div></section>`;
@@ -414,14 +418,16 @@
   const stepDocsLink = (p, t) => (DOC_CENTER ? DOC_CENTER(docQuery(p, { step: t.key })) : `#/project/${p.id}/documents?step=${encodeURIComponent(t.key)}`);
 
   function documentsPage(p, el, query) {
-    const focus = query.get("doc"), step = query.get("step");
+    const focus = query.get("doc"), step = query.get("step"), productId = query.get("product");
     const stepTask = step && p.tasks.find((t) => t.key === step);
-    const rows = p.docs.filter((d) => !stepTask || d.task === stepTask);
+    const prod = productId && p.products.find((x) => x.id === productId);
+    const rows = p.docs.filter((d) => (!stepTask || d.task === stepTask) && (!prod || d.product_id === prod.id));
     el.innerHTML = `<div class="notice job"><p><strong>Document center</strong>Yichang is building the full document center (files, versions, e-signature). It will plug in here. For now this lists every document on the project and where it stands.</p></div>
-      <section class="panel">${panelHead(stepTask ? `Documents for ${esc(stepTask.name)}` : "Documents", stepTask ? `<a href="#/project/${p.id}/documents">Show all documents</a>` : "")}<div class="panel-body">${docSummary(p)}</div>
-      <div class="table-wrap"><table class="data-table"><thead><tr><th>Document</th><th>Step</th><th>Department</th><th>Status</th><th>Due</th></tr></thead><tbody>
-      ${rows.sort((a, b) => ({ waiting: 0, not_started: 1, complete: 2 })[a.status] - ({ waiting: 0, not_started: 1, complete: 2 })[b.status]).map((d) => `<tr id="doc-${esc(d.id.replace(/:/g, "-"))}" class="${d.id === focus ? "focus" : ""}"><td><strong>${esc(d.name)}</strong><div class="subline">${d.flow.map((x) => (x.label === "PM" ? "You" : company(x.id).name)).join(" → ")}</div></td><td>${esc(d.task.name)}</td><td>${esc(d.department)}</td><td>${docStatus(d)}</td><td class="nowrap">${d.due != null ? fmtI(d.due) : d.history.length ? "done " + fmtI(d.history[d.history.length - 1].at) : ""}</td></tr>`).join("")}
-      </tbody></table></div>${stepTask && !rows.length ? `<div class="empty-state compact panel-body"><p>No paperwork for this step.</p></div>` : ""}</section>`;
+      <section class="panel"><div class="panel-header"><div><h2>${stepTask ? `Documents for ${esc(stepTask.name)}` : prod ? `Documents for ${esc(prod.name)}` : "Documents"}</h2>${stepTask || prod ? `<p><a href="#/project/${p.id}/documents">Show all documents</a></p>` : ""}</div>
+        <button class="button small" data-action="add-doc" data-project="${p.id}" ${stepTask ? `data-step="${stepTask.key}"` : ""} ${prod ? `data-product="${esc(prod.id)}"` : ""}>${I.plus}Add document</button></div><div class="panel-body">${docSummary(p)}</div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Document</th><th>Step</th><th>Department</th><th>Status</th><th>Due</th><th></th></tr></thead><tbody>
+      ${rows.sort((a, b) => ({ waiting: 0, not_started: 1, complete: 2 })[a.status] - ({ waiting: 0, not_started: 1, complete: 2 })[b.status]).map((d) => `<tr id="doc-${esc(d.id.replace(/:/g, "-"))}" class="${d.id === focus ? "focus" : ""}"><td><strong>${esc(d.name)}</strong><div class="subline">${d.flow.map((x) => (x.label === "PM" ? "You" : company(x.id).name)).join(" → ")}</div>${d.notes ? `<div class="subline">${esc(d.notes)}</div>` : ""}</td><td>${esc(d.task.name)}${d.product_id && p.products.find((x) => x.id === d.product_id) ? `<div class="subline"><a href="#/project/${p.id}/procurement">${esc(p.products.find((x) => x.id === d.product_id).name)}</a></div>` : ""}</td><td>${esc(d.department)}</td><td>${docStatus(d)}</td><td class="nowrap ${d.due != null && d.due < 0 && d.status !== "complete" ? "text-red" : ""}">${d.due != null ? fmtI(d.due) : d.history.length ? "done " + fmtI(d.history[d.history.length - 1].at) : ""}</td><td><button class="button ghost small" data-action="edit-doc" data-project="${p.id}" data-doc="${esc(d.id)}">${I.edit}Edit</button></td></tr>`).join("")}
+      </tbody></table></div>${!rows.length ? `<div class="empty-state compact panel-body"><p>No documents here yet.</p></div>` : ""}</section>`;
     const row = focus && el.querySelector(`#doc-${CSS.escape(focus.replace(/:/g, "-"))}`);
     if (row) setTimeout(() => row.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
   }
@@ -447,15 +453,16 @@
     el.innerHTML = `
       <div class="workspace-grid">
         <section class="panel">
-          ${panelHead("Tasks by contractor", "Who did what, colour-coded against the timeline. Open a contractor's documents or email them.")}
+          <div class="panel-header"><div><h2>Tasks by contractor</h2><p>Who did what, colour-coded against the timeline. Open a contractor's documents, email them, or edit their details and steps.</p></div><button class="button small" data-action="add-contractor" data-project="${p.id}">${I.plus}Add contractor</button></div>
           <div class="legend legend-top">${Object.entries(TASK_STATE).map(([k, [l]]) => `<span><i class="chip-key ${k}"></i>${l}</span>`).join("")}</div>
           <div class="sub-list">${subs.map((x) => {
-            const c = x.company, signed = x.docs.filter((d) => d.status === "complete").length, waiting = x.docs.filter((d) => d.status === "waiting").length;
+            const c = x.company, signed = x.docs.filter((d) => d.status === "complete").length, waiting = x.docs.length - signed;
             return `<div class="sub-row ${x.delayed.length ? "delayed" : ""}">
-              <div class="sub-who"><strong>${esc(c.name)}</strong><small>${esc(D.TRADES[c.trade])} · ${esc(c.contact)}</small>${x.delayed.length ? `<span class="badge red">${I.warn}Delay</span>` : ""}</div>
-              <div class="sub-tasks">${x.tasks.map((t) => `<a class="task-chip ${t.state}" href="${stepDocsLink(p, t.task)}" title="${esc(TASK_STATE[t.state][0])}${t.task.issue ? ": " + esc(t.task.issue.text) : ""}. Open this step's documents."><strong>${esc(t.task.name)}</strong><small>${TASK_STATE[t.state][0]} · ${t.task.done ? "done " + fmtI(t.task.fc.f) : fmtI(t.task.fc.s) + " – " + fmtI(t.task.fc.f)}</small></a>`).join("")}</div>
-              <div class="sub-actions"><button class="button secondary small" data-action="docs" data-project="${p.id}" data-company="${c.id}">${I.doc}Documents <span class="muted">${signed} done · ${waiting} open</span></button>
-                <button class="button small" data-action="email" data-project="${p.id}" data-company="${c.id}">${I.mail}Email</button></div>
+              <div class="sub-who"><strong>${esc(c.name)}</strong><small>${esc(D.TRADES[c.trade] || c.trade)} · ${esc(c.contact)}</small>${c.phone ? `<small>${esc(c.phone)}</small>` : ""}${x.delayed.length ? `<span class="badge red">${I.warn}Delay</span>` : ""}</div>
+              <div class="sub-tasks">${x.tasks.length ? "" : `<span class="tiny muted">Added by you. No steps assigned yet.</span>`}${x.tasks.map((t) => `<a class="task-chip ${t.state}" href="${stepDocsLink(p, t.task)}" title="${esc(TASK_STATE[t.state][0])}${t.task.issue ? ": " + esc(t.task.issue.text) : ""}. Open this step's documents."><strong>${esc(t.task.name)}</strong><small>${TASK_STATE[t.state][0]} · ${t.task.done ? "done " + fmtI(t.task.fc.f) : fmtI(t.task.fc.s) + " – " + fmtI(t.task.fc.f)}</small></a>`).join("")}</div>
+              <div class="sub-actions"><button class="button secondary small" data-action="docs" data-project="${p.id}" data-company="${c.id}">${I.doc}Documents <span class="muted">${signed} done · ${waiting} to do</span></button>
+                <button class="button small" data-action="email" data-project="${p.id}" data-company="${c.id}">${I.mail}Email</button>
+                <button class="button ghost small" data-action="edit-contractor" data-project="${p.id}" data-company="${c.id}">${I.edit}Edit</button></div>
             </div>`; }).join("")}</div>
         </section>
         <div class="secondary-stack">
@@ -476,9 +483,8 @@
   function closeModal() { $modal.innerHTML = ""; document.body.classList.remove("modal-open"); }
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $modal.innerHTML) closeModal(); });
 
-  function docsModal(p, companyId) {
-    const c = company(companyId), x = M.subcontractors(S, p).find((s) => s.company.id === companyId);
-    const step = (d, i) => {
+  function docCard(p, d) {
+    const step = (i) => {
       const party = d.flow[i], who = party.label === "PM" ? "You (PM)" : party.label === "Customer" ? "Customer" : company(party.id).name;
       const h = d.history[i];
       const verb = i === d.flow.length - 1 || party.label === "PM" ? "sign" : "fill out";
@@ -486,13 +492,20 @@
       if (d.status === "waiting" && i === d.step) return `<li class="now"><strong>${esc(who)}</strong> needs to ${verb} · due ${fmtI(d.due)}</li>`;
       return `<li><strong>${esc(who)}</strong> to ${verb}</li>`;
     };
+    return `<div class="doc-card"><div class="doc-card-head"><strong>${esc(d.name)}</strong>${docStatus(d)}</div><small class="muted">${esc(d.task.name)} · ${esc(d.department)}${d.notes ? " · " + esc(d.notes) : ""}</small>
+      ${d.flow.length ? `<ol class="doc-steps">${d.flow.map((_, i) => step(i)).join("")}</ol>` : ""}
+      <div class="doc-card-actions"><a class="doc-open" href="${docLink(p, d)}">Open in document center ${I.ext}</a><button class="button ghost small" data-action="edit-doc" data-project="${p.id}" data-doc="${esc(d.id)}">${I.edit}Edit</button></div></div>`;
+  }
+  function docsModal(p, companyId) {
+    const c = company(companyId), x = M.subcontractors(S, p).find((s) => s.company.id === companyId);
     openModal(`${c.name}: documents and tasks`, `
-      <p class="muted tiny">${esc(D.TRADES[c.trade])} · ${esc(c.contact)} · ${esc(c.email)}</p>
+      <p class="muted tiny">${esc(D.TRADES[c.trade] || c.trade)} · ${esc(c.contact)} · ${esc(c.email)}${c.phone ? " · " + esc(c.phone) : ""}</p>
       <div class="field-label section-spacer-sm">Tasks on ${esc(p.name)}</div>
       <ul class="plain-list">${x.tasks.map((t) => `<li><span class="badge ${TASK_STATE[t.state][1]}">${TASK_STATE[t.state][0]}</span> <strong>${esc(t.task.name)}</strong><small>${t.task.done ? "Completed " + fmtI(t.task.fc.f) : fmtI(t.task.fc.s) + " – " + fmtI(t.task.fc.f)}${t.task.issue ? " · " + esc(t.task.issue.text) : ""}</small></li>`).join("")}</ul>
       <div class="field-label section-spacer-sm">Documents (history and who's next)</div>
-      ${x.docs.length ? x.docs.map((d) => `<a class="doc-card" href="${docLink(p, d)}"><div class="doc-card-head"><strong>${esc(d.name)}</strong>${docStatus(d)}</div><small class="muted">${esc(d.task.name)} · ${esc(d.department)}</small><ol class="doc-steps">${d.flow.map((_, i) => step(d, i)).join("")}</ol><span class="doc-open">Open in document center ${I.ext}</span></a>`).join("") : `<p class="tiny muted">No documents with this company on this project.</p>`}
-      <div class="form-actions section-spacer-sm"><button class="button" data-action="email" data-project="${p.id}" data-company="${c.id}">${I.mail}Email ${esc(/desk|team|manager/i.test(c.contact) ? c.name : c.contact.split(" ")[0])}</button></div>`, true);
+      ${x.docs.length ? x.docs.map((d) => docCard(p, d)).join("") : `<p class="tiny muted">No documents with this company on this project.</p>`}
+      <div class="form-actions section-spacer-sm"><button class="button" data-action="email" data-project="${p.id}" data-company="${c.id}">${I.mail}Email ${esc(!c.contact || /desk|team|manager/i.test(c.contact) ? c.name : c.contact.split(" ")[0])}</button>
+        <button class="button secondary" data-action="add-doc" data-project="${p.id}" data-party="${c.id}">${I.plus}Add document</button></div>`, true);
   }
 
   function composeModal(draft) {
@@ -526,6 +539,7 @@
     return { to: c.email, subject: about ? about.subject : `${p.name} (${p.id})`, body: `${greet}\n\n${about ? about.body : ""}\n\nThanks,\n${me.name}\nEQORE` };
   }
   function todoDraft(p, x) {
+    if (x.kind === "product") return productDraft(p, x.product);
     if (x.kind === "issue") return draftFor(p, x.party, { subject: `${x.task.name}: recovery plan - ${p.name} (${p.id})`, body: `Thanks for flagging the delay on ${x.task.name.toLowerCase()} at ${p.name}: "${x.detail}"\n\nCan you send me the recovery plan and the earliest date you can commit to? It currently moves go-live to ${fmt(p.go_live_date)}.` });
     if (x.kind === "chase") return draftFor(p, x.party, { subject: `${x.doc.name} - ${p.name} (${p.id})`, body: `Checking in on the ${x.doc.name.toLowerCase()} for ${p.name}. We need it by ${fmtI(x.doc.due)} to keep ${x.doc.task.name.toLowerCase()} on schedule. Can you send it over?` });
     const from = x.doc.step > 0 ? x.doc.flow[x.doc.step - 1].id : (x.doc.flow.find((f) => f.label !== "PM") || {}).id;
@@ -548,6 +562,7 @@
       </form>
       <div id="db-results"></div>`, true);
     const form = document.getElementById("db-filter"), out = document.getElementById("db-results");
+    const onProject = new Set(M.subcontractors(S, p).map((x) => x.company.id));
     const run = () => {
       const f = Object.fromEntries(new FormData(form));
       const rows = M.searchCompanies(S, { name: f.name, trade: f.trade, step: f.step, state: f.state, from: f.from ? S.cal.index(f.from) : 0, to: f.to ? S.cal.index(f.to) : null, days: +f.days || 1, only_available: !!f.only_available }, p);
@@ -558,11 +573,288 @@
           <td>${r.available ? `<span class="badge green">${r.free_date === f.from || !f.from ? "Available" : "Available from " + fmt(r.free_date)}</span>` : `<span class="badge outline">Not in that window</span>`}<div class="subline">${r.free_date ? "Earliest " + fmt(r.free_date) : "Booked for months"} · ${r.jobs} EQORE job${r.jobs === 1 ? "" : "s"} in next 2 weeks</div></td>
           <td>${r.distance != null ? r.distance + " mi" : ""}${r.in_range ? "" : `<div class="subline text-red">outside their ${c.radius_mi} mi range</div>`}</td>
           <td>${c.day_rate ? "$" + c.day_rate.toLocaleString() + "/day" : "–"}</td>
-          <td><button class="button secondary small" data-action="email" data-project="${p.id}" data-company="${c.id}">${I.mail}Email</button></td></tr>`; }).join("")}
+          <td class="nowrap"><button class="button secondary small" data-action="email" data-project="${p.id}" data-company="${c.id}">${I.mail}Email</button>
+            ${onProject.has(c.id) ? `<span class="badge outline">On project</span>` : `<button class="button small" data-action="add-contractor" data-project="${p.id}" data-company="${c.id}">${I.plus}Add</button>`}</td></tr>`; }).join("")}
         </tbody></table></div>`;
     };
     form.addEventListener("input", run); form.addEventListener("change", run); form.addEventListener("submit", (e) => e.preventDefault());
     run();
+  }
+
+  // ---------- saved edits (products, documents, contractors) ----------
+  async function loadWorkspace() {
+    try { WS = await api("/api/workspace"); } catch (e) { WS = { version: 0, data: {} }; toast("Couldn't load your saved changes: " + e.message, true); }
+    S = M.build(D, today, WS.data);
+  }
+  // Applies `mutate` to a copy of the saved edits, saves it, then rebuilds every timeline and re-renders.
+  async function save(mutate, message) {
+    const data = JSON.parse(JSON.stringify(WS.data || {}));
+    data.projects = data.projects || {}; data.companies = data.companies || {}; data.company_edits = data.company_edits || {};
+    data.seq = data.seq || 0;
+    mutate(data);
+    try {
+      const r = await api("/api/workspace", { method: "PUT", body: JSON.stringify({ base_version: WS.version, data }) });
+      WS = { version: r.version, data };
+    } catch (e) {
+      if (e.status === 409) await loadWorkspace();
+      toast(e.message, true);
+      if (e.status === 409) { closeModal(); render(); }
+      return false;
+    }
+    S = M.build(D, today, WS.data);
+    cache.inbox = null;
+    closeModal(); render(); toast(message);
+    return true;
+  }
+  const projEdits = (data, pid) => (data.projects[pid] = data.projects[pid] || {});
+  const newId = (data, prefix) => `${prefix}${++data.seq}`;
+  const field = (label, html, wide) => `<label class="field ${wide ? "span-2" : ""}"><span>${label}</span>${html}</label>`;
+  const opt = (value, label, selected) => `<option value="${esc(value)}" ${selected ? "selected" : ""}>${esc(label)}</option>`;
+  const dateOr = (i) => (i != null ? S.cal.date(i) : "");
+  function wireForm(id, onSubmit, onDelete) {
+    const form = document.getElementById(id);
+    form.addEventListener("submit", (e) => { e.preventDefault(); onSubmit(Object.fromEntries(new FormData(form)), form); });
+    const del = form.querySelector("[data-role=delete]");
+    if (del && onDelete) del.addEventListener("click", () => { if (del.dataset.armed) onDelete(); else { del.dataset.armed = "1"; del.textContent = "Click again to confirm"; } });
+    return form;
+  }
+
+  // ---------- procurement ----------
+  const PROD_BADGE = { delivered: "green", on_track: "live", pending: "outline", order_now: "gold", delayed: "red", at_risk: "red", overdue: "red" };
+  function prodLabel(pr, st) {
+    switch (st.key) {
+      case "delivered": return `${pr.status}${pr.delivered_date ? " " + fmt(pr.delivered_date) : ""}`;
+      case "overdue": return `Overdue: was expected ${fmt(pr.expected_date)}`;
+      case "delayed": return `Delayed ${st.days} work day${st.days === 1 ? "" : "s"} (promised ${fmt(pr.promised_date)})`;
+      case "at_risk": return `Expected delay: arrives after ${st.need.name.toLowerCase()} is due to start (${fmt(st.need_date)})`;
+      case "order_now": return `Order now: needed by ${fmt(st.need_date)}`;
+      case "pending": return "Not ordered yet";
+      default: return "On track";
+    }
+  }
+  const dateLink = (p, d, red) => (d ? `<button class="link-date ${red ? "text-red" : ""}" data-action="calendar-at" data-project="${p.id}" data-date="${d}" title="Show on the calendar">${I.cal}${fmt(d)}</button>` : "–");
+  function productRow(p, pr) {
+    const st = p.product_states[pr.id], sup = company(pr.supplier_id);
+    const docs = p.docs.filter((d) => d.product_id === pr.id), done = docs.filter((d) => d.status === "complete").length;
+    const need = p.tasks.find((t) => t.key === pr.needed_for);
+    return `<div class="sub-row prod-row ${st.red ? "delayed" : ""}">
+      <div class="sub-who"><strong>${esc(pr.name)}</strong><small>${esc(pr.category)} · ${esc(pr.quantity)} ${esc(pr.unit)}</small><small>${esc(sup.name)}</small>${pr.po_number ? `<small>${esc(pr.po_number)}</small>` : ""}${st.red ? `<span class="badge red">${I.warn}${st.key === "at_risk" ? "Expected delay" : "Delay"}</span>` : ""}</div>
+      <div class="prod-detail">
+        <div class="prod-status"><span class="badge ${PROD_BADGE[st.key]}">${esc(pr.status)}</span><span class="${st.red ? "text-red" : "muted"}">${esc(prodLabel(pr, st))}</span></div>
+        <dl class="prod-dates">
+          <div><dt>Ordered</dt><dd>${pr.order_date ? fmt(pr.order_date) : "–"}</dd></div>
+          <div><dt>Promised</dt><dd>${pr.promised_date ? fmt(pr.promised_date) : "–"}</dd></div>
+          <div><dt>${M.productRank(pr) >= 5 ? "Delivered" : "Expected delivery"}</dt><dd>${M.productRank(pr) >= 5 ? (pr.delivered_date ? fmt(pr.delivered_date) : "–") : dateLink(p, pr.expected_date, st.red)}</dd></div>
+          <div><dt>Needed for</dt><dd>${need ? esc(need.name) : "–"}${need && !need.done ? `<small>${dateLink(p, S.cal.date(Math.max(0, need.fc.s)))}</small>` : need ? "<small>done</small>" : ""}</dd></div>
+        </dl>
+        ${pr.tracking || pr.notes ? `<p class="tiny muted">${pr.tracking ? "Tracking " + esc(pr.tracking) : ""}${pr.tracking && pr.notes ? " · " : ""}${esc(pr.notes || "")}</p>` : ""}
+      </div>
+      <div class="sub-actions"><button class="button secondary small" data-action="product-docs" data-project="${p.id}" data-product-id="${esc(pr.id)}">${I.doc}Documents <span class="muted">${done} done · ${docs.length - done} to do</span></button>
+        <button class="button small" data-action="email-product" data-project="${p.id}" data-product-id="${esc(pr.id)}">${I.mail}Email supplier</button>
+        <button class="button ghost small" data-action="edit-product" data-project="${p.id}" data-product-id="${esc(pr.id)}">${I.edit}Edit</button></div>
+    </div>`;
+  }
+  function deliveriesList(p, limit) {
+    const up = p.products.filter((pr) => M.productRank(pr) < 5 && pr.expected_date).sort((a, b) => a.expected_date.localeCompare(b.expected_date)).slice(0, limit || 99);
+    if (!up.length) return `<p class="tiny muted">No deliveries scheduled.</p>`;
+    return `<ul class="agenda">${up.map((pr) => { const st = p.product_states[pr.id]; return `<li><span class="agenda-date">${dateLink(p, pr.expected_date, st.red)}</span><span class="agenda-title ${st.red ? "text-red" : ""}"><i class="kind delivery"></i>${esc(pr.name)}<small>${esc(company(pr.supplier_id).name)}${st.red ? " · " + esc(prodLabel(pr, st)) : ""}</small></span></li>`; }).join("")}</ul>`;
+  }
+  function procSummary(p) {
+    const red = p.products.filter((pr) => p.product_states[pr.id].red);
+    return `${red.map((pr) => `<div class="notice error compact">${I.warn}<p><strong>${esc(pr.name)}</strong>${esc(prodLabel(pr, p.product_states[pr.id]))}</p></div>`).join("")}
+      <div class="field-label">Next deliveries</div>${deliveriesList(p, 3)}`;
+  }
+  function procurementPage(p, el) {
+    const order = { overdue: 0, delayed: 1, at_risk: 2, order_now: 3, on_track: 4, pending: 5, delivered: 6 };
+    const list = p.products.slice().sort((a, b) => order[p.product_states[a.id].key] - order[p.product_states[b.id].key] || (a.expected_date || "9").localeCompare(b.expected_date || "9"));
+    const red = list.filter((pr) => p.product_states[pr.id].red);
+    el.innerHTML = `
+      <div class="workspace-grid">
+        <section class="panel">
+          <div class="panel-header"><div><h2>Products</h2><p>Everything being bought for this project, with its supplier, status and delivery dates. Click a delivery date to see it on the calendar. A late delivery holds back the step that needs it.</p></div>
+            <button class="button small" data-action="add-product" data-project="${p.id}">${I.plus}Add product</button></div>
+          <div class="legend legend-top"><span><i class="chip-key done"></i>Delivered</span><span><i class="chip-key active"></i>On track</span><span><i class="chip-key at_risk"></i>Order now</span><span><i class="chip-key upcoming"></i>Not ordered</span><span><i class="chip-key problem"></i>Delayed or expected late</span></div>
+          <div class="sub-list">${list.length ? list.map((pr) => productRow(p, pr)).join("") : `<div class="empty-state"><p>No products yet. Add the first one.</p></div>`}</div>
+        </section>
+        <div class="secondary-stack">
+          <section class="panel">${panelHead("Delays", red.length ? `${red.length} product${red.length === 1 ? "" : "s"} late or expected late` : "Nothing late")}<div class="panel-body">${red.length ? red.map((pr) => `<div class="notice error compact">${I.warn}<p><strong>${esc(pr.name)}</strong>${esc(prodLabel(pr, p.product_states[pr.id]))}. ${esc(company(pr.supplier_id).name)}.</p></div>`).join("") : `<p class="tiny muted">Every delivery is on time.</p>`}</div></section>
+          <section class="panel">${panelHead("Upcoming deliveries", "From the delivery dates above, also on the calendar")}<div class="panel-body">${deliveriesList(p)}<button class="button secondary small section-spacer-sm" data-action="open-calendar" data-project="${p.id}">${I.cal}Open calendar</button></div></section>
+        </div>
+      </div>`;
+  }
+  function productDocsModal(p, pr) {
+    const docs = p.docs.filter((d) => d.product_id === pr.id), sup = company(pr.supplier_id);
+    openModal(`${pr.name}: documents`, `
+      <p class="muted tiny">${esc(pr.category)} · ${esc(pr.quantity)} ${esc(pr.unit)} · ${esc(sup.name)}${pr.po_number ? " · " + esc(pr.po_number) : ""}</p>
+      <div class="field-label section-spacer-sm">Documents (history and who's next)</div>
+      ${docs.length ? docs.map((d) => docCard(p, d)).join("") : `<p class="tiny muted">No documents for this product yet.</p>`}
+      <div class="form-actions section-spacer-sm"><a class="button secondary" href="${DOC_CENTER ? DOC_CENTER(docQuery(p, { product: pr.id })) : `#/project/${p.id}/documents?product=${encodeURIComponent(pr.id)}`}">${I.doc}All in document center</a>
+        <button class="button secondary" data-action="add-doc" data-project="${p.id}" data-product="${esc(pr.id)}" data-party="${esc(pr.supplier_id)}">${I.plus}Add document</button>
+        <button class="button" data-action="email-product" data-project="${p.id}" data-product-id="${esc(pr.id)}">${I.mail}Email supplier</button></div>`, true);
+  }
+  function productDraft(p, pr) {
+    const st = p.product_states[pr.id], need = st.need;
+    const ref = pr.po_number ? ` (${pr.po_number})` : "";
+    const needBy = st.need_date ? ` We need it on site by ${fmt(st.need_date)} for ${need.name.toLowerCase()}.` : "";
+    let body;
+    if (st.red) body = `Your delivery of ${pr.name.toLowerCase()}${ref} for ${p.name} is now expected ${fmt(pr.expected_date)}${pr.promised_date && pr.promised_date < pr.expected_date ? `, later than the ${fmt(pr.promised_date)} you promised` : ""}.${needBy}\n\nCan you confirm the date, and let me know anything you can do to bring it forward?`;
+    else if (M.productRank(pr) === 0) body = `We'd like a quote and lead time for ${pr.quantity} ${pr.unit} of ${pr.name.toLowerCase()} for ${p.name} (${p.city}, ${p.state}).${needBy}`;
+    else if (M.productRank(pr) >= 5) body = `Thanks for delivering ${pr.name.toLowerCase()}${ref} to ${p.name}. Please send the signed delivery receipt and invoice.`;
+    else body = `Can you confirm the delivery date for ${pr.name.toLowerCase()}${ref} for ${p.name}? We have it expected on ${fmt(pr.expected_date)}.${needBy}`;
+    return draftFor(p, pr.supplier_id, { subject: `${pr.name}${ref} - ${p.name} (${p.id})`, body });
+  }
+
+  // Add or edit a product. Saving stores the project's whole product list, so generated products become editable too.
+  function productForm(p, pr) {
+    const suppliers = S.companies.filter((c) => !["inspection", "utility", "customer"].includes(c.trade)).sort((a, b) => (a.trade + a.name).localeCompare(b.trade + b.name));
+    const v = pr || { name: "", category: "Other", supplier_id: "", quantity: 1, unit: "units", needed_for: "placement", status: "Not ordered", po_number: "", order_date: "", promised_date: "", expected_date: "", delivered_date: "", tracking: "", notes: "" };
+    openModal(pr ? `Edit product: ${pr.name}` : "Add product", `
+      <form id="product-form" class="form-grid" novalidate>
+        ${field("Product", `<input name="name" required value="${esc(v.name)}" placeholder="e.g. Step-up transformer">`, true)}
+        ${field("Category", `<select name="category">${D.PRODUCT_CATEGORIES.map((c) => opt(c, c, c === v.category)).join("")}</select>`)}
+        ${field("Supplier", `<select name="supplier_id">${opt("", "Choose a supplier", !v.supplier_id)}${suppliers.map((c) => opt(c.id, `${c.name} (${D.TRADES[c.trade] || c.trade})`, c.id === v.supplier_id)).join("")}${opt("__new", "+ New supplier…")}</select>`)}
+        <fieldset class="new-supplier span-2" hidden><legend>New supplier</legend><div class="form-grid">
+          ${field("Company name", `<input name="new_name">`)}${field("Contact", `<input name="new_contact">`)}${field("Email", `<input name="new_email" type="email">`)}${field("Phone", `<input name="new_phone">`)}</div></fieldset>
+        ${field("Quantity", `<input name="quantity" type="number" min="0" step="any" value="${esc(v.quantity)}">`)}
+        ${field("Unit", `<input name="unit" value="${esc(v.unit)}">`)}
+        ${field("Needed for", `<select name="needed_for">${D.TEMPLATE.map((t) => opt(t.key, t.name, t.key === v.needed_for)).join("")}</select>`)}
+        ${field("Status", `<select name="status">${D.PRODUCT_STATUSES.map((x) => opt(x, x, x === v.status)).join("")}</select>`)}
+        ${field("PO number", `<input name="po_number" value="${esc(v.po_number)}">`)}
+        ${field("Order date", `<input name="order_date" type="date" value="${esc(v.order_date)}">`)}
+        ${field("Promised delivery", `<input name="promised_date" type="date" value="${esc(v.promised_date)}">`)}
+        ${field("Expected delivery", `<input name="expected_date" type="date" value="${esc(v.expected_date)}">`)}
+        ${field("Delivered on", `<input name="delivered_date" type="date" value="${esc(v.delivered_date)}">`)}
+        ${field("Tracking", `<input name="tracking" value="${esc(v.tracking)}">`)}
+        ${field("Notes", `<textarea name="notes" rows="3">${esc(v.notes)}</textarea>`, true)}
+        <p class="tiny muted span-2">If the expected delivery is later than the step it's needed for, that step and everything after it move back, and the project turns red.</p>
+        <div class="form-actions span-2"><button class="button" type="submit">${pr ? "Save changes" : "Add product"}</button><button class="button ghost" type="button" data-action="close-modal">Cancel</button>
+          ${pr ? `<button class="button danger push-right" type="button" data-role="delete">Delete product</button>` : ""}</div>
+      </form>`, true);
+    const form = wireForm("product-form", (f) => {
+      if (!f.name.trim()) return toast("Give the product a name.", true);
+      if (!f.supplier_id) return toast("Choose a supplier, or add a new one.", true);
+      if (f.supplier_id === "__new" && !f.new_name.trim()) return toast("Give the new supplier a name.", true);
+      if (f.quantity !== "" && !(+f.quantity >= 0)) return toast("Quantity must be a number.", true);
+      save((data) => {
+        let supplier = f.supplier_id;
+        if (supplier === "__new") {
+          supplier = newId(data, "X-");
+          data.companies[supplier] = { id: supplier, name: f.new_name.trim(), trade: "supplier", contact: f.new_contact.trim(), email: f.new_email.trim(), phone: f.new_phone.trim(), state: p.state };
+        }
+        const pe = projEdits(data, p.id);
+        const list = pe.products || JSON.parse(JSON.stringify(p.products));
+        const rec = { name: f.name.trim(), category: f.category, supplier_id: supplier, quantity: f.quantity === "" ? "" : +f.quantity, unit: f.unit.trim(), needed_for: f.needed_for,
+          status: f.status, po_number: f.po_number.trim(), order_date: f.order_date || (D.PRODUCT_STATUSES.indexOf(f.status) >= 2 ? today : ""), promised_date: f.promised_date, expected_date: f.expected_date,
+          delivered_date: f.delivered_date || (["Delivered", "Installed"].includes(f.status) ? today : ""), tracking: f.tracking.trim(), notes: f.notes.trim() };
+        if (pr) Object.assign(list.find((x) => x.id === pr.id), rec);
+        else list.push({ id: `${p.id}:p:${newId(data, "c")}`, key: null, custom: true, ...rec });
+        pe.products = list;
+      }, pr ? "Product saved. Timeline updated." : "Product added.");
+    }, () => save((data) => {
+      const pe = projEdits(data, p.id);
+      pe.products = (pe.products || JSON.parse(JSON.stringify(p.products))).filter((x) => x.id !== pr.id);
+    }, "Product deleted."));
+    const sel = form.querySelector("[name=supplier_id]"), box = form.querySelector(".new-supplier");
+    sel.addEventListener("change", () => (box.hidden = sel.value !== "__new"));
+  }
+
+  // Add or edit a document (any document; generated ones keep their id so document-center links still work).
+  function docForm(p, d, preset) {
+    preset = preset || {};
+    const parties = [{ id: p.pm_id, name: "You (PM)" }, { id: p.customer.id, name: `Customer: ${p.customer.name}` }]
+      .concat(M.subcontractors(S, p).map((x) => ({ id: x.company.id, name: x.company.name })))
+      .concat(p.products.map((pr) => ({ id: pr.supplier_id, name: company(pr.supplier_id).name })))
+      .filter((x, i, a) => a.findIndex((y) => y.id === x.id) === i);
+    const v = d ? { name: d.name, step: d.task.key, product_id: d.product_id || "", status: d.status, next_id: d.next ? d.next.id : p.pm_id, due_date: dateOr(d.due), notes: d.notes || "" }
+      : { name: "", step: preset.step || (preset.product_id ? "procurement" : (p.current[0] || p.tasks[0]).key), product_id: preset.product_id || "", status: "waiting", next_id: preset.next_id || p.pm_id, due_date: "", notes: "" };
+    openModal(d ? `Edit document: ${d.name}` : "Add document", `
+      <form id="doc-form" class="form-grid" novalidate>
+        ${field("Document", `<input name="name" required value="${esc(v.name)}" placeholder="e.g. Lien waiver">`, true)}
+        ${field("Step", `<select name="step">${D.TEMPLATE.map((t) => opt(t.key, t.name, t.key === v.step)).join("")}</select>`)}
+        ${field("Product (optional)", `<select name="product_id">${opt("", "None", !v.product_id)}${p.products.map((pr) => opt(pr.id, pr.name, pr.id === v.product_id)).join("")}</select>`)}
+        ${field("Status", `<select name="status">${opt("not_started", "Not started", v.status === "not_started")}${opt("waiting", "In progress", v.status === "waiting")}${opt("complete", "Complete", v.status === "complete")}</select>`)}
+        ${field("Waiting on", `<select name="next_id">${parties.map((x) => opt(x.id, x.name, x.id === v.next_id)).join("")}</select>`)}
+        ${field("Due", `<input name="due_date" type="date" value="${esc(v.due_date)}">`)}
+        ${field("Notes", `<textarea name="notes" rows="3">${esc(v.notes)}</textarea>`, true)}
+        <p class="tiny muted span-2">Documents waiting on you show up in your to-do list.</p>
+        <div class="form-actions span-2"><button class="button" type="submit">${d ? "Save changes" : "Add document"}</button><button class="button ghost" type="button" data-action="close-modal">Cancel</button>
+          ${d ? `<button class="button danger push-right" type="button" data-role="delete">Remove document</button>` : ""}</div>
+      </form>`, true);
+    wireForm("doc-form", (f) => {
+      if (!f.name.trim()) return toast("Give the document a name.", true);
+      save((data) => {
+        const pe = projEdits(data, p.id);
+        const rec = { name: f.name.trim(), step: f.step, product_id: f.product_id || null, status: f.status, next_id: f.next_id, due_date: f.due_date, notes: f.notes.trim(),
+          completed_date: f.status === "complete" ? (d && d.status === "complete" ? (d.history.length ? S.cal.date(d.history[d.history.length - 1].at) : today) : today) : "" };
+        if (d && !d.custom) (pe.doc_edits = pe.doc_edits || {})[d.id] = rec;
+        else {
+          pe.docs_added = pe.docs_added || [];
+          if (d) Object.assign(pe.docs_added.find((x) => x.id === d.id), rec);
+          else pe.docs_added.push({ id: `${p.id}:doc:${newId(data, "c")}`, ...rec });
+        }
+      }, d ? "Document saved." : "Document added.");
+    }, () => save((data) => {
+      const pe = projEdits(data, p.id);
+      if (d.custom) pe.docs_added = (pe.docs_added || []).filter((x) => x.id !== d.id);
+      else { pe.docs_removed = (pe.docs_removed || []).concat(d.id); if (pe.doc_edits) delete pe.doc_edits[d.id]; }
+    }, "Document removed."));
+  }
+
+  // Add a contractor (from the database or a new company) or edit one: contact details and which steps they own.
+  function contractorForm(p, companyId, presetId) {
+    const editing = !!companyId, c = editing ? company(companyId) : null;
+    const sub = editing && M.subcontractors(S, p).find((x) => x.company.id === companyId);
+    const onProject = new Set(M.subcontractors(S, p).map((x) => x.company.id));
+    const choices = S.companies.filter((x) => !["customer"].includes(x.trade) && !onProject.has(x.id)).sort((a, b) => (a.trade + a.name).localeCompare(b.trade + b.name));
+    const steps = p.tasks.filter((t) => !["eqore", "customer"].includes(t.role));
+    const stepBox = (t) => {
+      const mineNow = editing && t.owner_id === companyId, locked = mineNow && t.default_owner_id === companyId;
+      return `<label class="check-row"><input type="checkbox" name="step_${t.key}" ${mineNow ? "checked" : ""} ${locked ? "disabled" : ""}><span>${esc(t.name)}<small>${locked ? "Original owner: assign another company to replace them" : "Now: " + esc(company(t.owner_id).name)}${t.done ? " · done" : ""}</small></span></label>`;
+    };
+    openModal(editing ? `Edit contractor: ${c.name}` : "Add contractor", `
+      <form id="contractor-form" class="form-grid" novalidate>
+        ${editing ? "" : field("Company", `<select name="company_id">${opt("", "Choose from the contractor database", !presetId)}${choices.map((x) => opt(x.id, `${x.name} (${D.TRADES[x.trade] || x.trade}, ${x.city || x.state})`, x.id === presetId)).join("")}${opt("__new", "+ New company…")}</select>`, true)}
+        <fieldset class="new-supplier span-2" ${editing ? "" : "hidden"}><legend>${editing ? "Contact details" : "New company"}</legend><div class="form-grid">
+          ${editing ? "" : field("Company name", `<input name="name">`) + field("Job type", `<select name="trade">${Object.entries(D.TRADES).filter(([k]) => !["customer", "eqore"].includes(k)).map(([k, l]) => opt(k, l)).join("")}</select>`) + field("City", `<input name="city">`) + field("State", `<select name="state">${opt("MA", "MA", p.state === "MA")}${opt("CA", "CA", p.state === "CA")}</select>`)}
+          ${field("Contact", `<input name="contact" value="${esc(editing ? c.contact : "")}">`)}${field("Email", `<input name="email" type="email" value="${esc(editing ? c.email : "")}">`)}
+          ${field("Phone", `<input name="phone" value="${esc(editing ? c.phone || "" : "")}">`)}${editing ? field("Notes", `<input name="notes" value="${esc(c.notes || "")}">`) : ""}</div></fieldset>
+        <fieldset class="span-2"><legend>Steps they own on ${esc(p.name)}</legend><div class="check-grid">${steps.map(stepBox).join("")}</div></fieldset>
+        <div class="form-actions span-2"><button class="button" type="submit">${editing ? "Save changes" : "Add to project"}</button><button class="button ghost" type="button" data-action="close-modal">Cancel</button>
+          ${editing && sub && sub.added ? `<button class="button danger push-right" type="button" data-role="delete">Remove from project</button>` : ""}</div>
+      </form>`, true);
+    const form = wireForm("contractor-form", (f) => {
+      let id = companyId || f.company_id;
+      if (!id) return toast("Choose a company, or add a new one.", true);
+      if (id === "__new" && !f.name.trim()) return toast("Give the new company a name.", true);
+      if (f.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.trim())) return toast("That email address doesn't look right.", true);
+      save((data) => {
+        if (id === "__new") {
+          id = newId(data, "X-");
+          data.companies[id] = { id, name: f.name.trim(), trade: f.trade, city: f.city.trim(), state: f.state, contact: f.contact.trim(), email: f.email.trim(), phone: f.phone.trim() };
+        } else if (editing) {
+          const contact = { contact: f.contact.trim(), email: f.email.trim(), phone: f.phone.trim(), notes: (f.notes || "").trim() };
+          if (data.companies[id]) Object.assign(data.companies[id], contact); else data.company_edits[id] = contact;
+        }
+        const pe = projEdits(data, p.id);
+        pe.owners = pe.owners || {};
+        steps.forEach((t) => {
+          const checked = !!f["step_" + t.key];
+          if (checked) { if (t.default_owner_id === id) delete pe.owners[t.key]; else pe.owners[t.key] = id; }
+          else if (pe.owners[t.key] === id) delete pe.owners[t.key];
+        });
+        pe.contractors_added = pe.contractors_added || [];
+        if (!editing && !pe.contractors_added.includes(id) && !p.tasks.some((t) => t.default_owner_id === id)) pe.contractors_added.push(id);
+      }, editing ? "Contractor saved. Timeline updated." : "Contractor added to the project.");
+    }, () => save((data) => {
+      const pe = projEdits(data, p.id);
+      pe.contractors_added = (pe.contractors_added || []).filter((x) => x !== companyId);
+      Object.keys(pe.owners || {}).forEach((k) => pe.owners[k] === companyId && delete pe.owners[k]);
+    }, "Contractor removed from the project."));
+    const sel = form.querySelector("[name=company_id]");
+    if (sel) {
+      const box = form.querySelector(".new-supplier");
+      sel.addEventListener("change", () => (box.hidden = sel.value !== "__new"));
+    }
   }
 
   // ---------- global actions ----------
@@ -571,12 +863,22 @@
     if (!el) return;
     const a = el.dataset.action, p = el.dataset.project && project(el.dataset.project);
     if (a === "close-modal") return closeModal();
-    if (a === "logout") { await api("/api/logout", { method: "POST", body: "{}" }).catch(() => {}); me = { signed_in: false, google_configured: me.google_configured }; cache.inbox = null; cache.gcal = {}; location.hash = "#/login"; return render(); }
+    if (a === "logout") { await api("/api/logout", { method: "POST", body: "{}" }).catch(() => {}); me = { signed_in: false, google_configured: me.google_configured }; cache.inbox = null; cache.gcal = {}; WS = { version: 0, data: {} }; S = M.build(D, today); location.hash = "#/login"; return render(); }
     if (a === "open-calendar") { openModal(`Calendar: ${p.name}`, `<div id="modal-cal"></div>`, true); return bigCalendar(p, document.getElementById("modal-cal"), monthStart(today)); }
     if (a === "docs") return docsModal(p, el.dataset.company);
     if (a === "email") return composeModal(draftFor(p, el.dataset.company));
     if (a === "email-todo") return composeModal(todoDraft(p, p.todos[+el.dataset.i]));
     if (a === "database") return databaseModal(p);
+    if (a === "calendar-at") { openModal(`Calendar: ${p.name}`, `<div id="modal-cal"></div>`, true); return bigCalendar(p, document.getElementById("modal-cal"), monthStart(el.dataset.date), el.dataset.date); }
+    const prod = el.dataset.productId && p && p.products.find((x) => x.id === el.dataset.productId);
+    if (a === "product-docs") return productDocsModal(p, prod);
+    if (a === "email-product") return composeModal(productDraft(p, prod));
+    if (a === "edit-product") return productForm(p, prod);
+    if (a === "add-product") return productForm(p, null);
+    if (a === "edit-doc") return docForm(p, p.docs.find((d) => d.id === el.dataset.doc));
+    if (a === "add-doc") return docForm(p, null, { step: el.dataset.step, product_id: el.dataset.product, next_id: el.dataset.party });
+    if (a === "add-contractor") return contractorForm(p, null, el.dataset.company);
+    if (a === "edit-contractor") return contractorForm(p, el.dataset.company);
   });
   document.addEventListener("keydown", (e) => {
     if ((e.key === "Enter" || e.key === " ") && e.target.matches("[role=button][data-action]")) { e.preventDefault(); e.target.click(); }
@@ -584,6 +886,7 @@
 
   async function boot(hash) {
     try { me = await api("/api/me"); } catch (e) { me = { signed_in: false, google_configured: false }; }
+    if (me.signed_in) await loadWorkspace();
     if (hash) { if (location.hash === hash) render(); else location.hash = hash; return; }
     render();
   }

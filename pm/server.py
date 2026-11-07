@@ -8,6 +8,7 @@ connects to the PM's real Gmail and Google Calendar through Google OAuth:
   * /api/inbox    scans the Gmail inbox for paperwork (documents to sign or complete) and sorts it by department.
   * /api/calendar reads the PM's Google Calendar.
   * /api/send     sends an email from the PM's own Gmail account.
+  * /api/workspace saves the PM's own edits (products, documents, contractors) in pm/data/<PM>.json.
 
 Google tokens stay in this server's memory only and are never sent to the browser.
 
@@ -36,6 +37,7 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parent.parent
 HERE = Path(__file__).resolve().parent
 CONFIG_FILE = HERE / "google_oauth.json"
+EDITS_DIR = HERE / "data"  # each PM's saved edits (products, documents, contractors), git-ignored
 MAX_BODY = 1024 * 1024
 PORT = 8790
 
@@ -223,6 +225,26 @@ def gmail_send(session, body):
     return {"sent": True, "id": sent.get("id"), "thread_id": sent.get("threadId"), "to": to}
 
 
+# ---------- The PM's saved edits ----------
+def edits_file(pm_id):
+    if not re.match(r"^PM-[A-Z]+$", pm_id or ""):
+        raise ValueError("Unknown portfolio")
+    return EDITS_DIR / f"{pm_id}.json"
+
+
+def load_edits(pm_id):
+    f = edits_file(pm_id)
+    return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {"version": 0, "data": {}}
+
+
+def save_edits(pm_id, doc):
+    EDITS_DIR.mkdir(exist_ok=True)
+    f = edits_file(pm_id)
+    tmp = f.with_suffix(".tmp")
+    tmp.write_text(json.dumps(doc), encoding="utf-8")
+    tmp.replace(f)
+
+
 # ---------- HTTP ----------
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -307,6 +329,12 @@ class Handler(SimpleHTTPRequestHandler):
             return self.redirect("https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params))
         if path == "/auth/google/callback":
             return self.google_callback(parse_qs(url.query))
+        if path == "/api/workspace":
+            s = self.session()
+            if not s:
+                return self.send_json({"error": "Not signed in"}, HTTPStatus.UNAUTHORIZED)
+            with LOCK:
+                return self.send_json(load_edits(s["pm_id"]))
         if path == "/api/inbox":
             return self.with_google(lambda s: gmail_paperwork(s))
         if path == "/api/calendar":
@@ -315,7 +343,7 @@ class Handler(SimpleHTTPRequestHandler):
             if not (re.match(r"^\d{4}-\d{2}-\d{2}$", start) and re.match(r"^\d{4}-\d{2}-\d{2}$", end)):
                 return self.send_json({"error": "from and to must be YYYY-MM-DD"}, HTTPStatus.BAD_REQUEST)
             return self.with_google(lambda s: google_calendar(s, start, end))
-        if any(part.startswith(".") for part in path.split("/") if part) or path.endswith(".py") or path.startswith("/pm/google_oauth"):
+        if any(part.startswith(".") for part in path.split("/") if part) or path.endswith(".py") or path.startswith("/pm/google_oauth") or path.startswith("/pm/data/"):
             return self.send_error(HTTPStatus.NOT_FOUND)
         return super().do_GET()
 
@@ -358,6 +386,28 @@ class Handler(SimpleHTTPRequestHandler):
         })
         target = "/pm/#/portfolio" + ("?missing_scopes=1" if missing else "")
         return self.redirect(target, cookie)
+
+    def do_PUT(self):
+        if urlparse(self.path).path != "/api/workspace":
+            return self.send_error(HTTPStatus.NOT_FOUND)
+        if not self.same_origin():
+            return self.send_json({"error": "Cross-site request blocked"}, HTTPStatus.FORBIDDEN)
+        s = self.session()
+        if not s:
+            return self.send_json({"error": "Not signed in"}, HTTPStatus.UNAUTHORIZED)
+        try:
+            body = self.read_json()
+        except ValueError as error:
+            return self.send_json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+        if not isinstance(body.get("data"), dict):
+            return self.send_json({"error": "Nothing to save"}, HTTPStatus.BAD_REQUEST)
+        with LOCK:
+            doc = load_edits(s["pm_id"])
+            if body.get("base_version") != doc["version"]:
+                return self.send_json({"error": "Your changes were saved from another tab. Reloaded the latest.", **doc}, HTTPStatus.CONFLICT)
+            doc = {"version": doc["version"] + 1, "data": body["data"]}
+            save_edits(s["pm_id"], doc)
+        return self.send_json({"version": doc["version"]})
 
     def do_POST(self):
         path = urlparse(self.path).path

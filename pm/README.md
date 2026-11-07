@@ -27,11 +27,17 @@ Use `localhost`, not `127.0.0.1` (the server redirects you): Google's sign-in se
   - **To do:** delays, documents the PM has to fill out or sign, PM tasks, and contractors to chase, sorted by urgency.
   - **Document center:** a link to the document center page. Yichang is building the full version; for now the page lists each document and its status.
   - **Subcontractors:** their open items, delays and recent updates.
+  - **Procurement:** delayed products and the next deliveries.
+- **Procurement page:** every product bought for the project (battery cabinets, inverter, switchgear, materials, and anything the PM adds), with supplier, PO, status, and order, promised and expected delivery dates. The step each product is needed for is shown too. Clicking a delivery date opens the calendar on that day, and deliveries appear on the calendar. Delays (later than promised), expected delays (arriving after the step that needs it starts) and overdue deliveries are red. A late delivery holds back the step that needs it, so the timeline and go-live move and the project turns red. Each product has a **Documents** popup (purchase order, spec sheet, delivery receipt, plus any added) linked to the document center, and an **Email supplier** button with a draft that fits the situation.
 - **Subcontractors page:** tasks by contractor, colour-coded against the timeline (done, in progress, at risk, pushed back by someone else's delay, delayed by their own problem). Each contractor has a **Documents** popup (signing history and who has to act next: PM, contractor or customer) and an **Email** button that drafts a message and sends it from the PM's Gmail. The **Contractor database** popup searches all companies by job type, task, name, state and availability. Availability counts the company's EQORE jobs on every project, their crew count, and work booked with other clients.
+
+## Adding and editing
+
+The PM can add, edit and delete **products** (Procurement page), **documents** (Document center page, and the Edit button on any document card), and **contractors** (Subcontractors page, or "Add" in the contractor database). For contractors, the PM can edit contact details and choose which steps they own on the project, which moves that step and its paperwork to them. A brand-new supplier or company can be created from the product and contractor forms. Edits are saved per PM by the server in `pm/data/<PM id>.json` (git-ignored), and every timeline is recalculated. Delete that file to go back to the generated demo data.
 
 ## Document center hand-off
 
-Subcontractor task chips and each document in a contractor's **Documents** popup link into the document center: a document opens that exact document, and a task chip opens the paperwork for that step. Today they open this app's document page, scrolled to the document and highlighted. When the full document center is ready, set `DOC_CENTER` in `app.js` to a function that builds its URL. It receives a query string with `project` plus either `doc` (the document id) or `step` (the step key). Document ids are stable: `<JOB>:<step>:doc<n>`, for example `JOB-001:interconnection:doc1` (the interconnection agreement).
+Subcontractor task chips and each document in a contractor's **Documents** popup link into the document center: a document opens that exact document, and a task chip opens the paperwork for that step. Today they open this app's document page, scrolled to the document and highlighted. When the full document center is ready, set `DOC_CENTER` in `app.js` to a function that builds its URL. It receives a query string with `project` plus one of `doc` (the document id), `step` (the step key) or `product` (the product id). Document ids are stable: `<JOB>:<step>:doc<n>`, for example `JOB-001:interconnection:doc1` (the interconnection agreement).
 
 ## Connect Gmail and Google Calendar (about 5 minutes)
 
@@ -58,8 +64,8 @@ node pm/model.test.js
 
 | File | What it does |
 | --- | --- |
-| `server.py` | Serves the repo root, sign-in (demo accounts and Google OAuth), Gmail paperwork scan, Google Calendar, sending email |
-| `data.js` | Synthetic data: PMs, the 16-step template and its paperwork, companies (from the old contractor portal's database), 37 MA/CA projects, reported delays |
-| `model.js` | Forecast (forward pass) and slack (backward pass), project status, to-dos, documents, calendar items, subcontractor updates, contractor availability |
+| `server.py` | Serves the repo root, sign-in (demo accounts and Google OAuth), Gmail paperwork scan, Google Calendar, sending email, saving each PM's edits |
+| `data.js` | Synthetic data: PMs, the 16-step template and its paperwork, companies (from the old contractor portal's database), 37 MA/CA projects, the products each project buys, reported delays |
+| `model.js` | Forecast (forward pass, including delivery dates) and slack (backward pass), project status, products, to-dos, documents, the PM's edits, calendar items, subcontractor updates, contractor availability |
 | `app.js`, `index.html`, `styles.css` | The app |
 | `model.test.js` | Node tests for the model |

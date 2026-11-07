@@ -94,6 +94,8 @@
     ["EN-PACPE", "Pacific Grid Engineers", "engineering", "CA", "Oakland", 37.8044, -122.2712, 3, 2600, 4.5, ["CA PE (electrical)", "CA PE (civil)"], 400, "David Park"],
     ["SU-QPACK", "QorePack Systems (battery supplier)", "supplier", "MA", "Boston", 42.3601, -71.0589, 9, 0, 4.4, ["UL 9540", "UL 9540A"], 3000, "Elena Marsh"],
     ["SU-VOLTA", "Voltaic Inverters", "supplier", "CA", "San Jose", 37.3382, -121.8863, 9, 0, 4.2, ["UL 1741"], 3000, "Sanjay Rao"],
+    ["SU-BAYSW", "Bay State Switchgear Supply", "supplier", "MA", "Woburn", 42.4793, -71.1523, 9, 0, 4.3, ["UL 891"], 3000, "Carla Mendes"],
+    ["SU-PACSW", "Pacific Switchgear Supply", "supplier", "CA", "Fresno", 36.7378, -119.7871, 9, 0, 4.1, ["UL 891"], 3000, "Ben Okoro"],
     ["IN-MA", "Municipal inspections (MA)", "inspection", "MA", "Boston", 42.3601, -71.0589, 9, 0, null, ["Building", "Wiring", "Fire"], 999, "Inspections desk"],
     ["IN-CA", "County inspections (CA)", "inspection", "CA", "Fresno", 36.7378, -119.7871, 9, 0, null, ["Building", "Wiring", "Fire"], 999, "Inspections desk"],
     ["UT-NGRID", "National Grid interconnection", "utility", "MA", "Waltham", 42.3765, -71.2356, 99, 0, null, [], 999, "Interconnection team"],
@@ -150,6 +152,22 @@
     ["JOB-037", "Visalia Citrus Growers", "Visalia", "CA", 36.3300, -119.2900, "UT-SCE", "PM-PRIYA", 250, 500, "equipment", 0.3],
   ];
 
+  // ---------- Products procured for every project ----------
+  // key, product, category, supplier (company id, a project role, or "switchgear" for the state's switchgear supplier),
+  // quantity (number, or "kwh/250" / "kw/250"), unit, step it is needed for, lead
+  // (lead "procurement" = long-lead equipment bought during the procurement step; a number = delivered that many work days before it's needed)
+  const PRODUCTS = [
+    ["cabinets", "Battery cabinets (QorePack 250 kWh)", "Battery storage", "SU-QPACK", "kwh/250", "units", "placement", "procurement"],
+    ["inverter", "Power conversion system (250 kW inverter)", "Inverter / PCS", "SU-VOLTA", "kw/250", "units", "placement", "procurement"],
+    ["switchgear", "Switchgear and fused disconnect", "Switchgear", "switchgear", 1, "set", "tie_in", "procurement"],
+    ["concrete", "Concrete, rebar and anchor bolts", "Civil materials", "civil", 1, "lot", "civil", 3],
+    ["cable", "Conduit and 480 V cable", "Electrical materials", "electrical", 1, "lot", "electrical", 3],
+    ["bollards", "Bollards and perimeter fencing", "Site safety", "civil", 8, "bollards", "final_insp", 5],
+    ["gateway", "Monitoring gateway and comms kit", "Controls", "SU-QPACK", 1, "kit", "controls", 5],
+  ];
+  const PRODUCT_STATUSES = ["Not ordered", "Quoted", "Ordered", "In production", "Shipped", "Delivered", "Installed"];
+  const PRODUCT_CATEGORIES = ["Battery storage", "Inverter / PCS", "Switchgear", "Transformer", "Civil materials", "Electrical materials", "Site safety", "Controls", "Other"];
+
   // ---------- Problems already reported (these are what turn a project red) ----------
   // project, step, extra work days, reported N work days ago (by the company that owns the step), what happened
   const ISSUES = [
@@ -174,7 +192,7 @@
     { offset: 10, time: "09:00", title: "Portfolio stand-up", project: null },
   ];
 
-  const data = { PMS, DEMO_PASSWORD, TEMPLATE, DOCS, DEPARTMENTS, TRADES, COMPANIES, OUTSIDE_BOOKINGS, PROJECTS, ISSUES, MEETINGS };
+  const data = { PMS, DEMO_PASSWORD, TEMPLATE, DOCS, DEPARTMENTS, TRADES, COMPANIES, OUTSIDE_BOOKINGS, PROJECTS, PRODUCTS, PRODUCT_STATUSES, PRODUCT_CATEGORIES, ISSUES, MEETINGS };
   root.EQORE_PM_DATA = data;
   if (typeof module !== "undefined") module.exports = data;
 })(typeof window !== "undefined" ? window : globalThis);
