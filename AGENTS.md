@@ -37,16 +37,15 @@ Humans over agents. Only the team lead reassigns work between teammates. If anyo
 
 ## 4. Who owns what
 
-Every agent checks this table before editing a file. The folder names are placeholders until the stack is picked. Whoever sets up the app skeleton renames them to match and posts the final paths on the board.
+Every agent checks this table before editing a file.
 
 | Area | Owner (GitHub login) | Folders |
 |---|---|---|
-| Startup page: map of all project sites (MA/CA) and the tasks overview | `vaggarmandaar-cell` (Mandaar) | `web/home/` |
-| Dashboard: portfolio view ranked by slip risk, per-project next action, owner and blocker, "inject a delay" demo control | `winnie104703` (Yichang) | `web/dashboard/` |
-| Contractor side: what each contractor/agency sees (everything they owe across projects) and what they can do (update status, report delays, confirm dates) | `ritvick-bit` (Ritvick) | `web/contractor/` |
-| **Shared core, owner TBD:** data model, 18-step task template, synthetic seed data (30–50 projects), scheduling engine (critical path, slip propagation, shared-resource conflicts, early warnings) | TBD (the lead assigns it) | `model/`, `engine/`, `data/` |
+| Dashboard: portfolio view ranked by slip risk, per-project next action, owner and blocker, "inject a delay" demo control. Currently also holds the Python engine, seed data and server. | `winnie104703` (Yichang) | `eqore-demo/` |
+| Startup page: map of all project sites (MA/CA) and the tasks overview | `vaggarmandaar-cell` (Mandaar) | `command-center/` (in PR #3, not merged yet) |
+| Contractor side: what each contractor/agency sees (everything they owe across projects) and what they can do (update status, report delays, confirm dates) | `ritvick-bit` (Ritvick) | TBD: depends on which app it plugs into |
 | Docs | `ritvick-bit` (Ritvick) | `docs/` |
 
-Until the shared core has an owner, ask on the board before creating or changing anything in `model/`, `engine/` or `data/`.
+**Open decision (lead):** `eqore-demo/` (Python, with its own engine) and `command-center/` (static JS, with its own `engine.js`) are two separate apps. The lead decides whether they merge into one app and whose engine and data model is the shared one. Until then, don't edit the other app's engine or data. Ask on the board.
 
 **Shared contract:** the data model (the Project/Task/Party/Resource schema) is what every other area builds on. Its owner posts the first version on the board early. Any later change to it gets an `@all` post before it merges.
