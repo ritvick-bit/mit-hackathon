@@ -81,6 +81,7 @@
         const issue = D.ISSUES.find((x) => x[0] === p.id && x[1] === t.key);
         const task = {
           id: `${p.id}:${t.key}`, project_id: p.id, key: t.key, short: t.short, name: t.name, phase: t.phase, role: t.role,
+          description: (D.STEP_INFO || {})[t.key] || "",
           owner_id: ownerOverride(ov, byCompany, p.id, t.key) || p.parties[t.role],
           default_owner_id: p.parties[t.role], duration: t.duration, preds: t.preds.map((k) => `${p.id}:${k}`),
           planned: { s: ps, f: pf }, done: pf < 0 && !issue, started: ps <= 0,

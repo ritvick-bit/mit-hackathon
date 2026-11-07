@@ -292,15 +292,125 @@
       }).join("")}</ol></div></div>
       <div class="legend ${p.slip > 0 ? "late" : "ontime"}"><span><i style="background:var(--tl)"></i>Completed (date done)</span><span><i class="ring"></i>Current step</span><span><i style="background:#d5dbd0"></i>Ahead (~ forecast start)</span></div>`;
   }
-  function timelinePage(p, el) {
+  function timelinePage(p, el, query) {
     el.innerHTML = `<section class="panel">${timelineHeader(p).replace(/<a class="button[^>]*>Details<\/a>/, "")}<div class="panel-body">${timeline(p)}</div></section>
+      <section class="panel section-spacer">${panelHead("Gantt chart", "Every step and how long it takes. Hover a bar for the details, click it to open the task.")}<div class="panel-body">${gantt(p)}</div></section>
       <section class="panel section-spacer">${panelHead("Every step", "Planned versus forecast dates, owner, and slack (days a step can slip before go-live moves)")}
       <div class="table-wrap"><table class="data-table"><thead><tr><th>Step</th><th>Owner</th><th>Status</th><th>Planned</th><th>Forecast / actual</th><th>Slack</th></tr></thead><tbody>
-      ${p.tasks.map((t) => { const st = M.taskState(t); return `<tr><td><strong>${esc(t.name)}</strong><div class="subline">${esc(t.phase)}${t.preds.length ? " · after " + t.preds.map((id) => S.byTask[id].short).join(", ") : ""}</div>${t.issue ? `<div class="subline text-red">${esc(t.issue.text)}</div>` : ""}</td>
+      ${p.tasks.map((t) => { const st = M.taskState(t); return `<tr class="clickable-row" data-action="open-task" data-project="${p.id}" data-task="${t.key}" tabindex="0" role="button"><td><strong>${esc(t.name)}</strong><div class="subline">${esc(t.phase)}${t.preds.length ? " · after " + t.preds.map((id) => S.byTask[id].short).join(", ") : ""}</div>${t.issue ? `<div class="subline text-red">${esc(t.issue.text)}</div>` : ""}</td>
         <td>${esc(t.role === "eqore" ? "EQORE (you)" : company(t.owner_id).name)}</td><td><span class="badge ${TASK_STATE[st][1]}">${TASK_STATE[st][0]}</span></td>
         <td class="nowrap">${fmtI(t.planned.s)} – ${fmtI(t.planned.f)}</td><td class="nowrap ${t.fc.f > t.planned.f ? "text-red" : ""}">${fmtI(t.fc.s)} – ${fmtI(t.fc.f)}</td>
         <td>${t.done ? "–" : t.critical ? '<span class="badge orange">Critical</span>' : t.slack + " d"}</td></tr>`; }).join("")}
       </tbody></table></div></section>`;
+    wireGantt(p, el);
+    const t = query && p.tasks.find((x) => x.key === query.get("task"));
+    if (t) taskModal(p, t);
+  }
+
+  // ---------- Gantt chart ----------
+  // Green: on the timeline. Yellow: something to do on it soon (a to-do due within two weeks, a small slip, at risk).
+  // Red: a reported problem, or it now finishes 5+ work days later than planned.
+  const BIG_SLIP = 5;
+  const TONE = { green: "On the timeline", yellow: "Action needed", red: "Delayed" };
+  function taskRelated(p, t) {
+    return {
+      todos: p.todos.filter((x) => x.task === t || (x.doc && x.doc.task === t) || (x.product && x.product.needed_for === t.key)),
+      docs: p.docs.filter((d) => d.task === t),
+      products: p.products.filter((pr) => pr.needed_for === t.key),
+      next: p.tasks.filter((x) => x.preds.includes(t.id)),
+    };
+  }
+  function taskTone(p, t) {
+    const slip = t.fc.f - t.planned.f, r = taskRelated(p, t);
+    if (t.issue || slip >= BIG_SLIP) return "red";
+    if (!t.done && (slip > 0 || M.taskState(t) === "at_risk" || r.todos.some((x) => x.urgency <= 3) || r.products.some((pr) => p.product_states[pr.id].red))) return "yellow";
+    return "green";
+  }
+  function taskToneReason(p, t) {
+    const slip = t.fc.f - t.planned.f, r = taskRelated(p, t), tone = taskTone(p, t);
+    if (tone === "red") return t.issue ? t.issue.text : `Finishes ${slip} work days later than planned.`;
+    const soon = r.todos.find((x) => x.urgency <= 3);
+    if (tone === "yellow") return soon ? `${soon.title} (${M.URGENCY[soon.urgency].toLowerCase()})` : slip > 0 ? `Pushed back ${slip} work day${slip === 1 ? "" : "s"} by earlier steps.` : "On the critical path and about to start.";
+    return t.done ? "Done on schedule." : "No open actions.";
+  }
+  const days = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
+  function gantt(p) {
+    const ds = (i) => S.cal.date(i);
+    const first = ds(Math.min(...p.tasks.map((t) => Math.min(t.planned.s, t.fc.s))));
+    const last = ds(Math.max(...p.tasks.map((t) => Math.max(t.planned.f, t.fc.f))));
+    const start = first.slice(0, 8) + "01", span = days(start, last) + 14, PX = 6, W = span * PX;
+    const x = (d) => days(start, d) * PX;
+    const bar = (s, f) => `left:${x(ds(s))}px;width:${Math.max(PX, (days(ds(s), ds(f)) + 1) * PX)}px`;
+    const months = [];
+    for (let d = start; days(d, last) >= -31; ) { months.push(d); const n = parse(d); n.setMonth(n.getMonth() + 1); d = n.toLocaleDateString("en-CA"); }
+    const todayX = x(today);
+    return `<div class="gantt-wrap" data-gantt="${p.id}"><div class="gantt" style="--w:${W}px">
+      <div class="g-row g-head"><div class="g-label">Step</div><div class="g-track">${months.map((m) => `<span class="g-month" style="left:${x(m)}px">${fmt(m, { month: "short", year: "2-digit" })}</span>`).join("")}</div></div>
+      ${p.tasks.map((t) => { const tone = taskTone(p, t);
+        return `<div class="g-row">
+          <button class="g-label" data-action="open-task" data-project="${p.id}" data-task="${t.key}"><strong>${esc(t.name)}</strong><small>${esc(t.role === "eqore" ? "EQORE (you)" : company(t.owner_id).name)}</small></button>
+          <div class="g-track">${months.map((m) => `<i class="g-grid" style="left:${x(m)}px"></i>`).join("")}
+            ${t.fc.s !== t.planned.s || t.fc.f !== t.planned.f ? `<span class="g-plan" style="${bar(t.planned.s, t.planned.f)}" aria-hidden="true"></span>` : ""}
+            <button class="g-bar ${tone} ${t.done ? "done" : ""}" style="${bar(t.fc.s, t.fc.f)}" data-action="open-task" data-project="${p.id}" data-task="${t.key}" data-tip="${t.key}" aria-label="${esc(t.name)}: ${TONE[tone]}, ${fmtI(t.fc.s)} to ${fmtI(t.fc.f)}"><span>${t.fc.f - t.fc.s + 1}d</span></button>
+          </div></div>`; }).join("")}
+      ${todayX >= 0 && todayX <= W ? `<i class="g-today" style="left:calc(var(--label) + ${todayX}px)"><span>Today</span></i>` : ""}
+    </div></div>
+    <div class="legend"><span><i class="g-key green"></i>${TONE.green}</span><span><i class="g-key yellow"></i>${TONE.yellow}: a to-do due within 2 weeks, or a small slip</span><span><i class="g-key red"></i>${TONE.red}: a reported problem or ${BIG_SLIP}+ work days late</span><span><i class="g-key done"></i>Done</span><span><i class="g-key plan"></i>Original plan</span></div>`;
+  }
+  function ganttTip(p, t) {
+    const tone = taskTone(p, t), slip = t.fc.f - t.planned.f;
+    return `<strong>${esc(t.name)}</strong><span class="badge ${tone === "green" ? "green" : tone === "yellow" ? "gold" : "red"}">${TONE[tone]}</span>
+      <p>${esc(t.description)}</p>
+      <dl><dt>${t.done ? "Done" : "Forecast"}</dt><dd>${fmtI(t.fc.s)} – ${fmtI(t.fc.f)} (${t.fc.f - t.fc.s + 1} work days)</dd>
+        <dt>Planned</dt><dd>${fmtI(t.planned.s)} – ${fmtI(t.planned.f)}${slip > 0 ? ` · <span class="text-red">${slip} work days late</span>` : ""}</dd>
+        <dt>Owner</dt><dd>${esc(t.role === "eqore" ? "EQORE (you)" : company(t.owner_id).name)}</dd></dl>
+      ${tone !== "green" ? `<p class="${tone === "red" ? "text-red" : ""}">${esc(taskToneReason(p, t))}</p>` : ""}<small>Click to open the task</small>`;
+  }
+  function wireGantt(p, el) {
+    const wrap = el.querySelector("[data-gantt]");
+    if (!wrap) return;
+    let tip = document.getElementById("gantt-tip");
+    if (!tip) { tip = document.createElement("div"); tip.id = "gantt-tip"; tip.setAttribute("role", "tooltip"); document.body.appendChild(tip); }
+    const show = (barEl, cx, cy) => {
+      const t = p.tasks.find((x) => x.key === barEl.dataset.tip);
+      tip.innerHTML = ganttTip(p, t); tip.className = "show";
+      const w = tip.offsetWidth, h = tip.offsetHeight;
+      tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, cx + 14)) + "px";
+      tip.style.top = (cy + h + 20 > innerHeight ? cy - h - 12 : cy + 16) + "px";
+    };
+    const hide = () => (tip.className = "");
+    wrap.addEventListener("mousemove", (e) => { const b = e.target.closest("[data-tip]"); b ? show(b, e.clientX, e.clientY) : hide(); });
+    wrap.addEventListener("mouseleave", hide);
+    wrap.addEventListener("focusin", (e) => { const b = e.target.closest("[data-tip]"); if (b) { const r = b.getBoundingClientRect(); show(b, r.left, r.bottom); } });
+    wrap.addEventListener("focusout", hide);
+    wrap.addEventListener("click", hide);
+    // Start the view at today.
+    const todayLine = wrap.querySelector(".g-today");
+    if (todayLine) wrap.scrollLeft = Math.max(0, todayLine.offsetLeft - wrap.clientWidth / 2);
+  }
+
+  // The task itself: what it is, its dates, owner, what it waits on and unlocks, and everything open on it.
+  function taskModal(p, t) {
+    const tone = taskTone(p, t), r = taskRelated(p, t), st = M.taskState(t), c = company(t.owner_id), slip = t.fc.f - t.planned.f;
+    const openDocs = r.docs.filter((d) => d.status !== "complete");
+    openModal(t.name, `
+      <div class="task-tags"><span class="badge ${tone === "green" ? "green" : tone === "yellow" ? "gold" : "red"}">${TONE[tone]}</span>${TASK_STATE[st][0] !== TONE[tone] ? `<span class="badge ${TASK_STATE[st][1]}">${TASK_STATE[st][0]}</span>` : ""}<span class="badge outline">${esc(t.phase)}</span>${t.critical ? '<span class="badge orange">Critical path</span>' : ""}</div>
+      <p class="task-desc">${esc(t.description)}</p>
+      ${t.issue ? `<div class="notice error compact">${I.warn}<p><strong>Reported problem</strong>${esc(t.issue.text)} (+${t.issue.extra} work days)</p></div>` : tone !== "green" ? `<p class="${tone === "red" ? "text-red" : "muted"} tiny">${esc(taskToneReason(p, t))}</p>` : ""}
+      <dl class="kv section-spacer-sm">
+        <dt>Owner</dt><dd>${esc(t.role === "eqore" ? "EQORE (you)" : c.name)}${c.contact && t.role !== "eqore" ? ` · ${esc(c.contact)}` : ""}</dd>
+        <dt>${t.done ? "Done" : "Forecast"}</dt><dd>${dateLink(p, S.cal.date(t.fc.s), tone === "red")} – ${fmtI(t.fc.f)} (${t.fc.f - t.fc.s + 1} work days)</dd>
+        <dt>Planned</dt><dd>${fmtI(t.planned.s)} – ${fmtI(t.planned.f)}${slip > 0 ? ` · <span class="text-red">${slip} work days late</span>` : ""}</dd>
+        <dt>Slack</dt><dd>${t.done ? "–" : t.critical ? "None: any slip moves go-live" : `${t.slack} work days before go-live moves`}</dd>
+        <dt>Waits on</dt><dd>${t.preds.length ? t.preds.map((id) => `<button class="link-date" data-action="open-task" data-project="${p.id}" data-task="${S.byTask[id].key}">${esc(S.byTask[id].name)}</button>`).join(", ") : "Nothing"}</dd>
+        <dt>Unlocks</dt><dd>${r.next.length ? r.next.map((x) => `<button class="link-date" data-action="open-task" data-project="${p.id}" data-task="${x.key}">${esc(x.name)}</button>`).join(", ") : "Go-live"}</dd>
+      </dl>
+      ${r.todos.length ? `<div class="field-label section-spacer-sm">Your to-dos on this step</div><div class="todo-list">${r.todos.map((x) => `<div class="todo u${x.urgency}"><span class="badge ${URG_BADGE[x.urgency]}">${x.kind === "issue" ? "Delay" : M.URGENCY[x.urgency]}</span><div class="todo-body"><strong>${esc(x.title)}</strong><small>${esc(x.detail)}</small></div>${x.party || x.doc ? `<button class="button secondary small" data-action="email-todo" data-project="${p.id}" data-i="${p.todos.indexOf(x)}">${I.mail}Email</button>` : ""}</div>`).join("")}</div>` : ""}
+      ${r.products.length ? `<div class="field-label section-spacer-sm">Products needed</div><ul class="plain-list">${r.products.map((pr) => { const ps = p.product_states[pr.id]; return `<li><strong>${esc(pr.name)}</strong> <span class="badge ${PROD_BADGE[ps.key]}">${esc(pr.status)}</span><small class="${ps.red ? "text-red" : ""}">${esc(prodLabel(pr, ps))}${pr.expected_date && M.productRank(pr) < 5 ? " · expected " + fmt(pr.expected_date) : ""}</small></li>`; }).join("")}</ul>` : ""}
+      <div class="field-label section-spacer-sm">Documents (${openDocs.length} open of ${r.docs.length})</div>
+      ${openDocs.slice(0, 4).map((d) => docCard(p, d)).join("") || `<p class="tiny muted">No open documents on this step.</p>`}
+      <div class="form-actions section-spacer-sm"><a class="button secondary" href="${stepDocsLink(p, t)}">${I.doc}All documents for this step</a>
+        ${t.role !== "eqore" && c.email ? `<button class="button" data-action="email" data-project="${p.id}" data-company="${c.id}">${I.mail}Email ${esc(c.contact && !/desk|team|manager/i.test(c.contact) ? c.contact.split(" ")[0] : c.name)}</button>` : ""}</div>`, true);
   }
 
   // ---------- calendar ----------
@@ -487,7 +597,11 @@
     if (first) first.focus();
   }
   function closeModal() { $modal.innerHTML = ""; document.body.classList.remove("modal-open"); }
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $modal.innerHTML) closeModal(); });
+  function dismissModal() {
+    closeModal();
+    if (/[?&]task=/.test(location.hash)) history.replaceState(null, "", location.hash.replace(/[?&]task=[^&]*/, ""));
+  }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $modal.innerHTML) dismissModal(); });
 
   function docCard(p, d) {
     const RECIPIENT = { pending: "waiting", signed: "signed", accepted: "accepted", received: "received", declined: "declined", returned: "returned" };
@@ -893,7 +1007,12 @@
     const el = e.target.closest("[data-action]");
     if (!el) return;
     const a = el.dataset.action, p = el.dataset.project && project(el.dataset.project);
-    if (a === "close-modal") return closeModal();
+    if (a === "close-modal") return dismissModal();
+    if (a === "open-task") {
+      const want = `#/project/${p.id}/timeline?task=${el.dataset.task}`;
+      if (location.hash === want) return taskModal(p, p.tasks.find((t) => t.key === el.dataset.task));
+      location.hash = want; return;
+    }
     if (a === "logout") { await api("/api/logout", { method: "POST", body: "{}" }).catch(() => {}); me = { signed_in: false, google_configured: me.google_configured }; cache.inbox = null; cache.gcal = {}; WS = { version: 0, data: {} }; PAPER = null; S = M.build(D, today); location.hash = "#/login"; return render(); }
     if (a === "open-calendar") { openModal(`Calendar: ${p.name}`, `<div id="modal-cal"></div>`, true); return bigCalendar(p, document.getElementById("modal-cal"), monthStart(today)); }
     if (a === "docs") return docsModal(p, el.dataset.company);

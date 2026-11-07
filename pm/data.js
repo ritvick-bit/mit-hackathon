@@ -31,6 +31,26 @@
     ["energize", "Energize", "Energize & hand over", "Inspections & switch-on", "eqore", 1, ["pto"]],
   ].map(([key, short, name, phase, role, duration, preds]) => ({ key, short, name, phase, role, duration, preds }));
 
+  // What each step involves (shown on the Gantt chart and the task popup). From docs/CHALLENGE.md; illustrative.
+  const STEP_INFO = {
+    contract: "Signed customer agreement, landlord consent if the site is leased, and the insurance certificate.",
+    equipment: "Pick the battery and inverter: UL 9540 listing, UL 9540A fire-test report for that exact model, spec sheets and a lead-time quote.",
+    engineering: "Electrical, structural and fire-protection engineers stamp the plan set: one-line diagrams, arc-flash study, pad design, NFPA 855 package.",
+    permitting: "Building, wiring and fire permits from the local authority. Reviewer comments can send the design back to engineering.",
+    interconnection: "The utility's interconnection study and agreement. Usually the longest step, and often the critical path to permission to operate.",
+    procurement: "Order the battery, inverter and switchgear and book freight and the crane. Lead times run two to five months.",
+    precon: "Book the electrical crew, the crane and the customer's shutdown window, and confirm the delivery date.",
+    civil: "Pour the concrete pad, set bollards and fencing. The pad needs about seven days to cure before anything is set on it.",
+    placement: "Deliver the cabinets and set them on the cured pad with the crane.",
+    electrical: "The licensed electrician runs conduit and cable. A rough inspection must pass before trenches are filled.",
+    tie_in: "Connect to the customer's main switchgear during a planned power shutdown, often on a weekend.",
+    controls: "EQORE's controls team and the customer's IT connect the monitoring gateway and communications.",
+    final_insp: "Building inspector, wiring inspector and fire marshal sign off. A failure sends the work back to the electrician.",
+    commissioning: "The manufacturer's field technician and EQORE test and start up the system.",
+    pto: "The utility issues permission to operate after the interconnection agreement, completion certificate and inspection sign-offs. The battery can't run before this.",
+    energize: "Turn the system on, calibrate it and hand the customer their dashboard.",
+  };
+
   // Paperwork per step. flow = who fills or signs, in order (PM, customer, or the project's company in that role).
   const DOCS = {
     contract: [["Customer energy services agreement", ["PM", "customer"]], ["Landlord consent package", ["customer"]], ["Certificate of insurance", ["customer", "PM"]]],
@@ -209,7 +229,7 @@
     { offset: 10, time: "09:00", title: "Portfolio stand-up", project: null },
   ];
 
-  const data = { PMS, DEMO_PASSWORD, TEMPLATE, DOCS, DEPARTMENTS, TRADES, COMPANIES, OUTSIDE_BOOKINGS, PROJECTS, PRODUCTS, PRODUCT_STATUSES, PRODUCT_CATEGORIES, DOC_MAP, DOC_PREREQS, DOC_KINDS, ISSUES, MEETINGS };
+  const data = { PMS, DEMO_PASSWORD, TEMPLATE, STEP_INFO, DOCS, DEPARTMENTS, TRADES, COMPANIES, OUTSIDE_BOOKINGS, PROJECTS, PRODUCTS, PRODUCT_STATUSES, PRODUCT_CATEGORIES, DOC_MAP, DOC_PREREQS, DOC_KINDS, ISSUES, MEETINGS };
   root.EQORE_PM_DATA = data;
   if (typeof module !== "undefined") module.exports = data;
 })(typeof window !== "undefined" ? window : globalThis);
