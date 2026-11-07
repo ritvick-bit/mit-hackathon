@@ -227,6 +227,68 @@ class PaperworkServiceTests(unittest.TestCase):
         self.assertNotIn("sent", doc["email_draft"])
         self.assertIn("summary", json.dumps(doc))
 
+    def submit_email_suggestion(self, **changes):
+        payload = {"expected_version": self.record()["version"], "project_id": "harbor_components",
+                   "doc_id": "D05", "kind": "draft_email", "suggestion": True,
+                   "draft": {"subject": "Confirm the plant access window",
+                             "body": "Please confirm Tuesday at 2 pm; production must stay running."}}
+        payload.update(changes)
+        return self.service.assist(self.jordan, payload)["job_id"]
+
+    def test_email_suggestion_uses_unsaved_prose_without_changing_saved_draft_or_recipients(self):
+        self.perform("draft_email", doc_id="D05", subject="Saved original", body="Keep this saved version.")
+        before = self.record()
+        identity = self.submit_email_suggestion(draft={
+            "subject": "Specific PM request", "body": "Please confirm Tuesday at 2 pm; production must stay running.",
+            "to": ["unapproved-recipient@example.com"]})
+        with patch("paperwork_api.llm._call", return_value=self.model_result(
+                subject="Access confirmation", body="Can you confirm Tuesday at 2 pm without interrupting production?")) as call:
+            self.pool.run_next()
+        context = call.call_args.args[2]
+        self.assertEqual("Please confirm Tuesday at 2 pm; production must stay running.",
+                         context["document"]["email_draft"]["body"])
+        self.assertIn("Specific PM request", context["document"]["email_draft"]["subject"])
+        original_doc = next(d for d in before["state"]["projects"]["harbor_components"]["documents"] if d["id"] == "D05")
+        self.assertEqual(original_doc["email_draft"]["to"], context["document"]["email_draft"]["to"])
+        job = self.service.job(self.jordan, identity)
+        self.assertEqual("completed", job["status"])
+        self.assertEqual("live", job["result"]["mode"])
+        self.assertIn("Tuesday at 2 pm", job["result"]["body"])
+        self.assertNotIn("to", job["result"])
+        self.assertEqual(before, self.record(), "Generating a suggestion cannot save a draft, summary or any workspace change.")
+        self.assertEqual([], self.transport.calls)
+
+    def test_email_suggestion_rejects_stale_result_and_preserves_newer_draft(self):
+        identity = self.submit_email_suggestion()
+        self.perform("draft_email", doc_id="D05", subject="Newer saved draft", body="The PM changed the request.")
+        newer = self.record()
+        with patch("paperwork_api.llm._call", return_value=self.model_result()):
+            self.pool.run_next()
+        job = self.service.job(self.jordan, identity)
+        self.assertEqual("failed", job["status"])
+        self.assertNotIn("result", job)
+        self.assertEqual(newer, self.record())
+
+    def test_failed_email_suggestion_cannot_replace_saved_prose(self):
+        self.perform("draft_email", doc_id="D05", subject="Original", body="Preserve my draft on model failure.")
+        before = self.record()
+        identity = self.submit_email_suggestion()
+        with patch("paperwork_api.llm._call", side_effect=RuntimeError("Test model unavailable")):
+            self.pool.run_next()
+        self.assertEqual("failed", self.service.job(self.jordan, identity)["status"])
+        self.assertEqual(before, self.record())
+
+    def test_email_suggestion_validates_editor_prose_before_creating_a_job(self):
+        before = self.record()
+        for draft in (None, [], {"subject": "Valid", "body": []},
+                      {"subject": " ", "body": "Text"}, {"subject": "x" * 501, "body": "Text"}):
+            with self.subTest(draft=draft), self.assertRaises((ValueError, DomainError)):
+                self.submit_email_suggestion(draft=draft)
+        with self.assertRaises(ValueError):
+            self.submit_email_suggestion(kind="summary")
+        self.assertEqual([], self.pool.pending)
+        self.assertEqual(before, self.record())
+
     def test_model_cannot_cite_evidence_from_another_document(self):
         before = self.record()
         identity = self.submit_assist("D05")

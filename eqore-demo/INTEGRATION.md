@@ -149,3 +149,8 @@ Relay's supported direct URLs currently use `http://localhost:8765/paperwork.htm
 The existing `/api/paperwork/connectors` endpoint accepts `operation: create_connection_draft`, `provider: docusign`, a test `email`, and the current `expected_version`. It requires a successful account check, writes a durable idempotent test request scoped to the PM/account, creates an unsent draft, and exposes only safe result metadata via `connectors.latest_connection_test`. Test records never enter a project's document register or advance an approval. The normal project envelope operation still requires current prerequisites, an e-signature document, and reviewed recipient addresses.
 
 For review results and limits, read `docs/STANDARDS_EVALUATION.md` and `docs/PRESSURE_TEST_REPORT.md`. Existing provider status, request/response bodies, database files and OAuth credentials must not be copied into Git.
+
+
+### Email editor suggestions
+
+`POST /api/paperwork/assist` accepts `kind: "draft_email"`, `suggestion: true`, and `draft: {subject, body}` with the existing project/document/version fields. The server derives recipients from project records, checks source citations and the unchanged workspace version, and returns prose in `GET /api/paperwork/jobs/<id>` as `result`. Suggestion generation does not save an email, summary or workspace change. The editor explicitly accepts/discards the suggestion; the existing `draft_email` action saves the reviewed text. Existing non-suggestion assistance calls remain compatible.

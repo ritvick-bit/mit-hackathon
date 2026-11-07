@@ -1,5 +1,7 @@
 # Relay — EQORE paperwork and deployment workspace — v0.7
 
+**Latest teammate checkpoint:** [current progress and integration status](docs/CURRENT_PROGRESS.md).
+
 The November 7 client calibration focuses on **Option 4: Compliance documentation at scale**. Open a project's **Document coverage** view to review the 20 source-linked requirements, adopt a missing record with a due date, and track review dates or site changes. **EQORE references** contains all 12 supplied source links and the verified Century-Tywood equipment/site example. Existing project histories are preserved; the reference site has no invented approval dates or budgets. See [client calibration](docs/CLIENT_CALIBRATION.md).
 
 A local hackathon prototype focused on the paperwork between a signed battery project and completed delivery. The opening PM workspace combines a pannable, zoomable US project map with a scrolling queue of document follow-ups. Project overviews put ranked next actions ahead of the document register and include capacity, industry, baseline budget, target handover and site constraints. Original emails, signature history, current revisions and dependencies remain linked to each document. The earlier delivery, contractor and vendor workflows remain available as secondary pages. The knowledge library is grounded in EQORE's published [deployment PM responsibilities](https://www.eqore.com/careers/project-manager-deployments); the project records and twenty-document template are illustrative, not EQORE's internal SOP.
