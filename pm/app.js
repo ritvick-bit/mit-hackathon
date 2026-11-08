@@ -532,7 +532,7 @@
   function documentsPage(p, el, query) {
     el.innerHTML = `<div class="dc" id="dc-root"></div>`;
     if (query.get("connected")) toast(`${query.get("connected") === "docusign" ? "DocuSign" : "Gmail"} connected. Test the connection in Integrations.`);
-    if (query.get("connect_error")) toast(query.get("connect_error"), true);
+    if (query.get("connect_error")) { toast(query.get("connect_error"), true); clearTimeout(toast.t); toast.t = setTimeout(() => ($toast.className = "toast"), 20000); }
     const label = (v) => (p.products.find((x) => x.id === v) || {}).name || (p.tasks.find((t) => t.key === v) || {}).name || v;
     window.DocCenter.mount(document.getElementById("dc-root"), {
       projectId: p.id, query, label,

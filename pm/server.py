@@ -327,7 +327,7 @@ class Handler(SimpleHTTPRequestHandler):
                 DOCS.oauth_complete(provider, query, self.token())
                 return self.redirect("/pm/" + back + ("&" if "?" in back else "?") + "connected=" + quote(provider))
             except Exception as e:  # shown to the PM on return; provider errors never include tokens
-                return self.redirect("/pm/" + back + ("&" if "?" in back else "?") + "connect_error=" + quote(str(e)[:200]))
+                return self.redirect("/pm/" + back + ("&" if "?" in back else "?") + "connect_error=" + quote(str(e)[:600]))
         if path == "/api/paperwork/document.pdf":
             g = lambda k: query.get(k, [None])[0]
             try:

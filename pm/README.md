@@ -58,7 +58,7 @@ The PM can add, edit and delete **products** (Procurement page) and **contractor
 3. In any project's **Document center → Integrations**, choose **Connect account** for DocuSign, sign in to the developer account and allow access. Then choose **Test connection**.
 4. On a signature document, set real email addresses for its signers (Contacts → Edit project contact). **Sign with DocuSign and send** then opens your signing page, and DocuSign emails the others.
 
-The connection lasts for the server session (tokens stay in memory, as in Yichang's version). Sign-and-send uses DocuSign's sandbox (`demo.docusign.net`), so nothing is legally binding.
+If you use an existing DocuSign app whose redirect URI is on another port (Yichang's uses `http://localhost:8765/...`), start the platform on that port: `python pm/server.py --port 8765`. Every callback follows the server's port. The connection lasts for the server session (tokens stay in memory, as in Yichang's version). Sign-and-send uses DocuSign's sandbox (`demo.docusign.net`), so nothing is legally binding.
 
 ## Connect Gmail and Google Calendar (about 5 minutes)
 

@@ -189,12 +189,58 @@ class DocCenter(PaperworkService):
         self.sessions, self.jobs, self.connection_checks, self.session_connectors = {}, {}, {}, {}
         self.lock = threading.RLock()
         self.connectors = PaperworkConnectors()
-        self.oauth = paperwork_oauth.PaperworkOAuth()
+        self.oauth_error = None  # the last OAuth error code a provider returned (a standard code only, never a token or body text)
+        self.oauth = paperwork_oauth.PaperworkOAuth(transport=self._oauth_transport)
         for provider in list(paperwork_oauth.CALLBACKS):
             paperwork_oauth.CALLBACKS[provider] = f"http://localhost:{port}/api/paperwork/oauth/callback/{provider}"
         self.store.ensure_workspace("paperwork", {"schema_version": paperwork.SCHEMA_VERSION, "now": self.now(),
                                                   "pms": [{"id": p["id"], "name": p["name"], "email": p["email"]} for p in pms],
                                                   "projects": {}, "event_receipts": {}, "quarantine": []})
+
+    OAUTH_HINTS = {
+        "invalid_client": "DocuSign doesn't accept this app for sign-in without a secret. In Apps and Keys, edit the app and set \"Is your application able to securely store a client secret?\" to No, save, and connect again.",
+        "unauthorized_client": "DocuSign doesn't allow this sign-in type for the app. In Apps and Keys, set \"Is your application able to securely store a client secret?\" to No (authorization code grant with PKCE), save, and connect again.",
+        "invalid_grant": "DocuSign rejected the sign-in code: the redirect URI must be exactly http://localhost:8790/api/paperwork/oauth/callback/docusign, and the sign-in must be finished within a few minutes. Check the app and connect again.",
+        "invalid_request": "DocuSign rejected the sign-in request. Check the integration key and the redirect URI in Apps and Keys, then connect again.",
+        "consent_required": "Allow access on DocuSign's permission screen, then connect again.",
+    }
+
+    def _oauth_transport(self, method, url, headers, body, timeout):
+        """His OAuth transport, keeping DocuSign's standard OAuth error code (and HTTP status) when an exchange fails."""
+        import json as _json
+        import urllib.error
+        import urllib.parse
+        try:
+            result = paperwork_oauth._transport(method, url, headers, body, timeout)
+            if isinstance(result, dict) and result.get("error"):
+                self.oauth_error = {"code": str(result["error"])[:40], "status": 200}
+            return result
+        except urllib.error.HTTPError as exc:
+            code = None
+            description = ""
+            try:
+                data = _json.loads(exc.read(2048).decode("utf-8"))
+                code = data.get("error") if isinstance(data, dict) else None
+                # DocuSign's short reason, for the server console only (never shown in the page; it has no tokens).
+                description = str(data.get("error_description") or data.get("error_message") or "")[:200] if isinstance(data, dict) else ""
+            except Exception:
+                pass
+            known = {"invalid_client", "unauthorized_client", "invalid_grant", "invalid_request", "unsupported_grant_type", "invalid_scope", "consent_required", "access_denied"}
+            self.oauth_error = {"code": code if code in known else "http_" + str(exc.code), "status": exc.code}
+            sent = sorted(urllib.parse.parse_qs((body or b"").decode()).keys()) if body else []
+            print(f"OAuth {method} {url.split('?')[0]} failed: HTTP {exc.code} {self.oauth_error['code']} {description!r}; fields sent: {sent}", flush=True)
+            raise
+
+    def oauth_complete(self, provider, query, token):
+        self.oauth_error = None
+        try:
+            return super().oauth_complete(provider, query, token)
+        except Exception as error:
+            err = self.oauth_error
+            if err:
+                hint = self.OAUTH_HINTS.get(err["code"], "")
+                raise type(error)(*([error.code, f"{error} (DocuSign: {err['code']}.) {hint}".strip()] if hasattr(error, "code") else [f"{error} (DocuSign: {err['code']}.) {hint}".strip()])) from None
+            raise
 
     @staticmethod
     def now():
@@ -379,7 +425,8 @@ class DocCenter(PaperworkService):
                     recipients.append({"recipient_id": r["id"], "name": r["name"], "email": email})
                 result = signing.send_for_signature(client, scope={"project_id": project_id, "document_id": doc_id, "document_revision": doc["revision"]},
                                                     request_id=f"sign-{project_id}-{doc_id}-r{doc['revision']}", title=doc["title"], body=doc["body"], pm=person, recipients=recipients)
-                sent_at = result["sent_at"]  # DocuSign's own time, so later reconciliation matches it exactly
+                # DocuSign's own recorded send time, so his later reconciliation matches it exactly.
+                sent_at = self._provider_sent_at(client, project_id, doc_id, doc["revision"], result["envelope_id"]) or result["sent_at"]
                 if paperwork._dt(sent_at) > paperwork._dt(state["now"]):
                     state["now"] = sent_at  # this server's clock is a little behind DocuSign's
                 state = paperwork.apply(state, pm, {"type": "bind_provider_envelope", "project_id": project_id, "doc_id": doc_id, "envelope_id": result["envelope_id"],
@@ -394,6 +441,29 @@ class DocCenter(PaperworkService):
         url = signing.signing_url(client, envelope_id=envelope_id, pm=person,
                                   return_url=f"http://localhost:{self.port}/api/paperwork/signing/return?project_id={project_id}&doc_id={doc_id}")
         return {"signing_url": url, "envelope_id": envelope_id}
+
+    @staticmethod
+    def _provider_sent_at(client, project_id, doc_id, revision, envelope_id):
+        try:
+            found = client.reconcile_envelopes([{"project_id": project_id, "document_id": doc_id, "document_revision": revision, "envelope_id": envelope_id}])
+            return next((o.get("sent_at") for o in found.get("observations", []) if o.get("sent_at")), None)
+        except Exception:
+            return None
+
+    def sync_envelope(self, state, pm, project_id, doc_id, client=None):
+        """His reconciliation, after aligning a platform-sent envelope's send time with DocuSign's record.
+
+        Envelopes sent before this fix recorded the time from DocuSign's create response, which can differ by a
+        fraction of a second from the envelope's sentDateTime; his reconciliation requires an exact match."""
+        project, doc = self.document(state, pm, project_id, doc_id)
+        ps = doc.get("platform_signing") or {}
+        if ps.get("envelope_id") and ps["envelope_id"] == doc.get("envelope_id") and doc.get("sent_at"):
+            actual = self._provider_sent_at(client or self.connectors, project_id, doc_id, doc["revision"], doc["envelope_id"])
+            if actual and actual != doc["sent_at"] and abs((paperwork._dt(actual) - paperwork._dt(doc["sent_at"])).total_seconds()) < 600:
+                state = copy.deepcopy(state)
+                _, doc = self.document(state, pm, project_id, doc_id)
+                doc["sent_at"] = actual
+        return super().sync_envelope(state, pm, project_id, doc_id, client)
 
     def signing_return(self, token, query):
         """DocuSign sends the PM back here. A completed signature is noted, then the envelope is reconciled."""

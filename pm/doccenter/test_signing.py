@@ -88,13 +88,14 @@ class SigningTest(unittest.TestCase):
         payload = json.loads(body) if body else None
         self.calls.append((method, url, payload))
         if url.endswith("/envelopes") and method == "POST":
+            # As in the live sandbox: the create response's time differs slightly from the envelope's sentDateTime.
             self.sent_at = datetime.now(timezone.utc).isoformat()
-            return {"envelopeId": "env-123", "status": "sent", "statusDateTime": self.sent_at}
+            return {"envelopeId": "env-123", "status": "sent", "statusDateTime": (datetime.now(timezone.utc) - timedelta(milliseconds=300)).isoformat()}
         if url.endswith("/views/recipient"):
             return {"url": "https://demo.docusign.net/Signing/StartInSession.aspx?t=abc"}
         if "/envelopes/env-123" in url and method == "GET":
             signed = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
-            return {"status": "sent", "sentDateTime": self.sent_at, "recipients": {"signers": [
+            return {"envelopeId": "env-123", "status": "sent", "sentDateTime": self.sent_at, "recipients": {"signers": [
                 {"recipientId": "1", "name": "Jordan Lee", "email": "jordan@company.com", "status": "completed", "signedDateTime": signed},
                 {"recipientId": "2", "name": "Avery Brooks", "email": "avery@customer.com", "status": "sent"},
                 {"recipientId": "3", "name": "Taylor Reed", "email": "taylor@customer.com", "status": "sent"}]}}
@@ -121,18 +122,27 @@ class SigningTest(unittest.TestCase):
         self.assertEqual(envelope["status"], "sent")
         self.assertEqual((signers[0]["clientUserId"], signers[0]["routingOrder"], signers[0]["email"]), ("PM-JORDAN", "1", "jordan@company.com"))
         self.assertTrue(all(s["routingOrder"] == "2" and "clientUserId" not in s for s in signers[1:]), "DocuSign emails the other signers")
-        view = self.calls[1][2]
+        view = next(c[2] for c in self.calls if c[1].endswith("/views/recipient"))
         self.assertEqual((view["clientUserId"], view["recipientId"]), ("PM-JORDAN", "1"))
         self.assertTrue(view["returnUrl"].startswith("http://localhost:8790/api/paperwork/signing/return?"))
         doc = self.raw("D05")
         self.assertEqual((doc["status"], doc["provider"], doc["envelope_id"]), ("sent", "docusign", "env-123"))
+        self.assertEqual(doc["sent_at"], self.sent_at, "the envelope's own sentDateTime, so reconciliation matches")
         self.assertEqual(doc["provider_recipient_map"], {"2": "JOB-001__customer", "3": "JOB-001__facilities"})
 
         self.dc.signing_return("jordan", {"project_id": "JOB-001", "doc_id": "D05", "event": "signing_complete"})
         doc = self.raw("D05")
         self.assertTrue(doc["platform_signing"]["pm_signed_at"])
         self.assertEqual(doc["status"], "sent", "the other signers have not signed yet; nothing is inferred")
-        self.assertTrue(any(c[0] == "GET" for c in self.calls), "returning from DocuSign reconciles the envelope")
+        self.assertTrue(sum(c[0] == "GET" for c in self.calls) >= 2, "returning from DocuSign reconciles the envelope")
+        self.assertTrue(doc["provider_observations"], "the reconciliation was recorded (no timestamp conflict)")
+        # An envelope recorded with the create-response time (before the fix) is aligned on the next sync.
+        state = copy.deepcopy(self.dc.store.read_workspace("paperwork")["state"])
+        paperwork._doc(state["projects"]["JOB-001"], "D05")["sent_at"] = (datetime.fromisoformat(self.sent_at) - timedelta(milliseconds=300)).isoformat()
+        self.dc.store.write_workspace("paperwork", state, self.version())
+        result = self.dc.connector_action("jordan", {"operation": "sync_envelope", "provider": "docusign", "expected_version": self.version(),
+                                                     "project_id": "JOB-001", "doc_id": "D05"})
+        self.assertFalse(result["connector_result"].get("errors"))
         with self.assertRaises(DomainError):
             self.dc.docusign_sign("jordan", {"project_id": "JOB-001", "doc_id": "D05"})  # nothing left for the PM to sign
 
