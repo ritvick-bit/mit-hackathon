@@ -14,7 +14,7 @@ connects to the PM's real Gmail and Google Calendar through Google OAuth:
 
 Google tokens stay in this server's memory only and are never sent to the browser.
 
-Run from the repo root:  python pm/server.py   then open http://localhost:8790/
+Run from the repo root:  python pm/server.py   then open http://localhost:8765/
 Python 3.10+, standard library only. Google setup: see pm/README.md (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET or
 pm/google_oauth.json). Without it, the demo accounts work with a synthetic inbox and calendar.
 """
@@ -50,7 +50,7 @@ HERE = Path(__file__).resolve().parent
 CONFIG_FILE = HERE / "google_oauth.json"
 EDITS_DIR = HERE / "data"  # each PM's saved edits (products, documents, contractors), git-ignored
 MAX_BODY = 1024 * 1024
-PORT = 8790
+PORT = 8765
 
 SCOPES = [
     "openid", "email", "profile",

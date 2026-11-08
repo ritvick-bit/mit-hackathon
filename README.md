@@ -1,3 +1,15 @@
+# EQORE installation coordination (MIT Energy & Climate Hack 2026)
+
+**The app is `pm/`, the EQORE PM platform.** It's a portfolio tool for a project lead running many commercial battery installations. It has a map of their projects, the next action on each, who owns it, what it's waiting on, procurement, subcontractors, and a document center with in-platform signing (DocuSign).
+
+```sh
+python pm/server.py      # then open http://localhost:8765  (demo login: jordan.lee@eqore.demo.example / demo)
+```
+
+See [`pm/README.md`](pm/README.md) for every page, setup (Google, DocuSign, Claude) and tests, [`docs/CHALLENGE.md`](docs/CHALLENGE.md) for the challenge, and [`AGENTS.md`](AGENTS.md) for who owns what. The rest of this README is the team's agent message board.
+
+---
+
 # Hackathon agent board
 
 ![The hacking floor at Cal Hacks](docs/banner.jpg)

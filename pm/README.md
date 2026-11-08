@@ -9,7 +9,7 @@ The look comes from the deployment workspace in `eqore-demo/` (it loads `eqore-d
 From the repo root (Python 3.10+, standard library only):
 
 ```sh
-python pm/server.py          # then open http://localhost:8790/
+python pm/server.py          # then open http://localhost:8765/  (port 8765 matches the team DocuSign app)
 ```
 
 Use `localhost`, not `127.0.0.1` (the server redirects you): Google's sign-in sends you back to `localhost`, and the sign-in cookie has to match.
@@ -48,24 +48,24 @@ The PM can add, edit and delete **products** (Procurement page) and **contractor
   - *Not connected:* a signature pad (draw or type) signs the current revision in the platform. Your name, the time and a fingerprint of the exact text are saved, then the document goes to its recipients. **Email the signed copy** opens your email with the signed PDF attached: it is sent from your Gmail when you're signed in with Google, or downloads so you can attach it to a Gmail draft.
   - **View PDF** on any document renders it, with its signatures, as a PDF (`/api/paperwork/document.pdf`).
 - **Versions (platform addition):** the **Versions** tab lists every revision with when and why it was replaced and whether you signed it. You can view any earlier revision with its signatures, compare it with the current one (added and removed lines), open or download it as a PDF, and edit: **Edit this draft**, **Edit in a new revision**, **Copy into current draft** or **Restore as new revision**. Earlier revisions are never changed: edits go into the current draft or a new revision, so signed history stays intact.
-- **Integrations:** DocuSign sandbox drafts, sync and connection tests work as in his version, with OAuth callbacks on this server (`http://localhost:8790/api/paperwork/oauth/callback/docusign`). A PM signed in with Google already has Gmail connected, so his Gmail draft and reply-sync use that sign-in (the platform asks for `gmail.compose` for drafts).
+- **Integrations:** DocuSign sandbox drafts, sync and connection tests work as in his version, with OAuth callbacks on this server (`http://localhost:8765/api/paperwork/oauth/callback/docusign`). A PM signed in with Google already has Gmail connected, so his Gmail draft and reply-sync use that sign-in (the platform asks for `gmail.compose` for drafts).
 - **Links:** every link into the document center goes through `docLink`/`stepDocsLink` in `app.js`: `#/project/<JOB>/documents?doc=<id>`, `?step=<step key>` or `?product=<product id>`. Document ids are his: `D01`–`D20`, `C_<requirement>` for tracked compliance documents, `P-<product>-po` / `-spec` / `-receipt`, and `X<n>` for documents the PM adds.
 
 ## Connect DocuSign (developer sandbox)
 
-1. In a free [DocuSign developer account](https://developers.docusign.com/), open **Apps and Keys** and add an app (integration key). Choose authorization code grant with PKCE (no secret), and add the redirect URI `http://localhost:8790/api/paperwork/oauth/callback/docusign`.
+1. In a free [DocuSign developer account](https://developers.docusign.com/), open **Apps and Keys** and add an app (integration key). Choose authorization code grant with PKCE (no secret), and add the redirect URI `http://localhost:8765/api/paperwork/oauth/callback/docusign`.
 2. Give the server the key: save `{"client_id": "<integration key>"}` as `pm/docusign.json` (git-ignored, read at startup), or `export EQORE_DOCUSIGN_CLIENT_ID=<integration key>`, or paste it into the form in step 3.
 3. In any project's **Document center → Integrations**, choose **Connect account** for DocuSign, sign in to the developer account and allow access. Then choose **Test connection**.
 4. On a signature document, set real email addresses for its signers (Contacts → Edit project contact). **Sign with DocuSign and send** then opens your signing page, and DocuSign emails the others.
 
-If you use an existing DocuSign app whose redirect URI is on another port (Yichang's uses `http://localhost:8765/...`), start the platform on that port: `python pm/server.py --port 8765`. Every callback follows the server's port. The connection lasts for the server session (tokens stay in memory, as in Yichang's version). Sign-and-send uses DocuSign's sandbox (`demo.docusign.net`), so nothing is legally binding.
+The team's DocuSign app (Yichang's integration key, `dba067bd-…`) has the redirect URI above, which is why the platform runs on port 8765 by default. Ask Ritvick or Yichang for the key and save it as `pm/docusign.json`. If you use your own app on another port, start the platform with `--port <port>`: every callback follows the server's port. Port 8765 is also `eqore-demo`'s default, so don't run both at once. The connection lasts for the server session (tokens stay in memory, as in Yichang's version). Sign-and-send uses DocuSign's sandbox (`demo.docusign.net`), so nothing is legally binding.
 
 ## Connect Gmail and Google Calendar (about 5 minutes)
 
 1. In the [Google Cloud console](https://console.cloud.google.com/), create a project (or pick one).
 2. **APIs & Services → Library:** enable the **Gmail API** and the **Google Calendar API**.
 3. **APIs & Services → OAuth consent screen:** choose *External* (or *Internal* for a Workspace org), fill in the app name and your email, and add yourself (and teammates) as **test users**.
-4. **APIs & Services → Credentials → Create credentials → OAuth client ID:** type *Web application*. Under *Authorized redirect URIs*, add `http://localhost:8790/auth/google/callback`.
+4. **APIs & Services → Credentials → Create credentials → OAuth client ID:** type *Web application*. Under *Authorized redirect URIs*, add `http://localhost:8765/auth/google/callback`.
 5. Either download the JSON and save it as `pm/google_oauth.json` (git-ignored), or set environment variables:
    ```sh
    export GOOGLE_CLIENT_ID=...apps.googleusercontent.com
