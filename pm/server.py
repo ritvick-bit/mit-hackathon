@@ -558,9 +558,16 @@ def main():
     args = parser.parse_args()
     PORT = args.port
     global DOCS
+    # DocuSign integration key (a public app ID): environment, or pm/docusign.json (git-ignored, per developer).
+    ds_file = HERE / "docusign.json"
+    if not os.environ.get("EQORE_DOCUSIGN_CLIENT_ID") and ds_file.exists():
+        key = json.loads(ds_file.read_text(encoding="utf-8")).get("client_id")
+        if key:
+            os.environ["EQORE_DOCUSIGN_CLIENT_ID"] = key
     DOCS = DocCenter(EDITS_DIR, PORT, SESSIONS, LOCK, [{"id": v["pm_id"], "name": v["name"], "email": v["email"]} for v in ROSTER.values()], google_token=access_token)
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     status = "Google sign-in ready" if google_config() else "Google sign-in not configured: demo accounts only (see pm/README.md)"
+    status += "; DocuSign key loaded" if os.environ.get("EQORE_DOCUSIGN_CLIENT_ID") else "; DocuSign not configured"
     print(f"EQORE PM platform on http://localhost:{PORT}/  ({status})")
     server.serve_forever()
 

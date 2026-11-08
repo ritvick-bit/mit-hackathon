@@ -54,7 +54,7 @@ The PM can add, edit and delete **products** (Procurement page) and **contractor
 ## Connect DocuSign (developer sandbox)
 
 1. In a free [DocuSign developer account](https://developers.docusign.com/), open **Apps and Keys** and add an app (integration key). Choose authorization code grant with PKCE (no secret), and add the redirect URI `http://localhost:8790/api/paperwork/oauth/callback/docusign`.
-2. Start the server with the key: `export EQORE_DOCUSIGN_CLIENT_ID=<integration key>` (or paste it into the form in step 3).
+2. Give the server the key: save `{"client_id": "<integration key>"}` as `pm/docusign.json` (git-ignored, read at startup), or `export EQORE_DOCUSIGN_CLIENT_ID=<integration key>`, or paste it into the form in step 3.
 3. In any project's **Document center → Integrations**, choose **Connect account** for DocuSign, sign in to the developer account and allow access. Then choose **Test connection**.
 4. On a signature document, set real email addresses for its signers (Contacts → Edit project contact). **Sign with DocuSign and send** then opens your signing page, and DocuSign emails the others.
 
