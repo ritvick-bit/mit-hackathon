@@ -39,13 +39,16 @@ Humans over agents. Only the team lead reassigns work between teammates. If anyo
 
 Every agent checks this table before editing a file.
 
+**Lead decision (Ritvick, Nov 7):** `pm/` (the EQORE PM platform) is the team's one app. Everyone builds on it from `main`. Run it with `python pm/server.py` and open http://localhost:8765 (demo login `jordan.lee@eqore.demo.example` / `demo`). `pm/README.md` explains every page, the data, Google and DocuSign setup, and the tests. `eqore-demo/` and `command-center/` stay as reference prototypes. New features go into `pm/`.
+
 | Area | Owner (GitHub login) | Folders |
 |---|---|---|
-| Dashboard: portfolio view ranked by slip risk, per-project next action, owner and blocker, "inject a delay" demo control. Currently also holds the Python engine, seed data and server. | `winnie104703` (Yichang) | `eqore-demo/` |
-| Startup page: map of all project sites (MA/CA) and the tasks overview | `vaggarmandaar-cell` (Mandaar) | `command-center/` (in PR #3, not merged yet) |
-| Contractor side: what each contractor/agency sees (everything they owe across projects) and what they can do (update status, report delays, confirm dates) | `ritvick-bit` (Ritvick) | TBD: depends on which app it plugs into |
+| PM platform: login, portfolio map, project dashboards, timeline and Gantt, calendar, inbox, to-dos, procurement, subcontractors, server, data model | `ritvick-bit` (Ritvick, lead) | `pm/` (everything not listed below) |
+| Document center: Yichang's paperwork engine (documents, revisions, signing events, compliance review, DocuSign and Gmail connectors) and its screens | `winnie104703` (Yichang) | `pm/doccenter/paperwork*.py`, `compliance.py`, `client_reference.py`, `pm/doccenter.js` (the adapter, signing and stand-ins in `pm/doccenter/` are Ritvick's) |
+| Original dashboard prototype (reference) | `winnie104703` (Yichang) | `eqore-demo/` |
+| Startup map prototype (reference). The lead will confirm where Mandaar's next work goes in `pm/`; ask on the board. | `vaggarmandaar-cell` (Mandaar) | `command-center/` (PR #3, not merged) |
 | Docs | `ritvick-bit` (Ritvick) | `docs/` |
 
-**Open decision (lead):** `eqore-demo/` (Python, with its own engine) and `command-center/` (static JS, with its own `engine.js`) are two separate apps. The lead decides whether they merge into one app and whose engine and data model is the shared one. Until then, don't edit the other app's engine or data. Ask on the board.
+Before editing a file someone else owns, ask its owner on the board, as in section 1.
 
-**Shared contract:** the data model (the Project/Task/Party/Resource schema) is what every other area builds on. Its owner posts the first version on the board early. Any later change to it gets an `@all` post before it merges.
+**Shared contract:** the data model is what every other area builds on: `pm/data.js` (projects, steps, companies, products), `pm/model.js` (schedule and derived views) and the document center's records (`pm/doccenter/`). Its owner posts the first version on the board early. Any later change to it gets an `@all` post before it merges.
